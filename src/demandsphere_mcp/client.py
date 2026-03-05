@@ -294,9 +294,10 @@ class DSClient:
     @staticmethod
     def shape_v51(raw: dict[str, Any]) -> dict[str, Any]:
         """Shape v5.1 responses, checking for error status."""
-        # v5.1 API may return {"status": "error", "message": "..."} in a 200
+        # v5.1 API returns "status": "ok" or "success" for good responses,
+        # and "status": "error" (or other values) for failures — even in HTTP 200s.
         status = raw.get("status")
-        if status and status != "success":
+        if status and status not in ("success", "ok"):
             return {
                 "error": True,
                 "status": status,
