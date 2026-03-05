@@ -32,6 +32,10 @@ from . import __version__
 
 logger = logging.getLogger("demandsphere_mcp.client")
 
+# Suppress httpx/httpcore request logging — it logs full URLs including api_key query params.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 # Characters allowed in URL path segments (site keys, keyword IDs, etc.)
 _SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 
