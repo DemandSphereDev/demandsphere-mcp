@@ -27,7 +27,7 @@ dependencies = [
 Homepage = "https://github.com/DemandSphereDev/demandsphere-mcp"
 Repository = "https://github.com/DemandSphereDev/demandsphere-mcp"
 Issues = "https://github.com/DemandSphereDev/demandsphere-mcp/issues"
-Documentation = "https://docs.demandsphere.com/mcp"
+Documentation = "https://help.demandsphere.com"
 
 [project.optional-dependencies]
 dev = [

@@ -117,8 +117,6 @@ claude mcp add demandsphere \
   -- uv run --directory /path/to/demandsphere-mcp demandsphere-mcp
 ```
 
-**Claude (web) and ChatGPT** — see [Hosted Deployment](#hosted-deployment) below.
-
 ## Security Model
 
 ### Transport Modes
@@ -126,7 +124,7 @@ claude mcp add demandsphere \
 | Transport | Use Case | Security Boundary |
 |---|---|---|
 | **stdio** | Local (Claude Code, Cursor) | OS process isolation; no network exposure |
-| **Streamable HTTP** | Hosted/enterprise | HTTPS + OAuth 2.1 |
+| **Streamable HTTP** | Self-hosted / remote | HTTPS via reverse proxy |
 
 ### API Key Handling
 
@@ -139,22 +137,6 @@ The DemandSphere API uses query-parameter auth. The MCP server holds the key and
 | Environment variable | Local dev, CI/CD |
 | Config file (`~/.config/demandsphere/`) | Personal machines |
 | `.env` file | Local dev |
-
-### Hosted Deployment
-
-For remote deployment (serving Claude web, ChatGPT, or other remote MCP clients):
-
-1. Deploy behind HTTPS with a reverse proxy
-2. Add OAuth 2.1 via your identity provider
-3. Users connect via `https://mcp.demandsphere.com/mcp` and authenticate in-browser
-
-**Claude (web)** — Pro, Max, Team, Enterprise: Settings → Integrations → Add Integration → enter server URL.
-
-**ChatGPT** — Plus, Pro, Business, Enterprise, Education: Settings → Apps & Connectors → Add Connector → enter server URL with OAuth.
-
-ChatGPT Deep Research is also supported via the built-in `search` and `fetch` compatibility tools.
-
-See the [hosted deployment guide](https://docs.demandsphere.com/mcp/deployment) for full setup instructions including OAuth configuration.
 
 ### Self-Hosting
 
