@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "demandsphere": {
+      "command": "demandsphere-mcp",
+      "env": {
+        "DEMANDSPHERE_API_KEY": "YOUR_API_KEY_HERE"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# Example production docker-compose.yml
+# Applies security hardening per best practices.
+
+services:
+  demandsphere-mcp:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      - DEMANDSPHERE_API_KEY=${DEMANDSPHERE_API_KEY}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 50
+    restart: unless-stopped
