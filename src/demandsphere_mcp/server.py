@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .client import DSClient
 from .config import settings
-from .tools import brands_v51, chatgpt_compat, genai_v51, keywords_v50, sites
+from .tools import brands_v51, chatgpt_compat, genai_v51, keywords_v50, prompts, sites
 
 logger = logging.getLogger("demandsphere_mcp")
 
@@ -87,6 +87,7 @@ def create_server() -> FastMCP:
     genai_v51.register(mcp, client)
     brands_v51.register(mcp, client)
     chatgpt_compat.register(mcp, client)
+    prompts.register(mcp, client)
 
     return mcp
 
