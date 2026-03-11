@@ -17,7 +17,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         raw = await client.post("/sites/properties/list")
         data = raw.get("propertyList", raw)
         hints = [
-            "Each site has a global_key (for get_keyword_performance, v5.1 tools) and an id/site_id (for other v5.0 tools).",
+            "Each site has a global_key (for serp_analytics view='performance', v5.1 tools) and an id/site_id (for other v5.0 tools).",
             "Use list_sites_flat for a simpler flat list with keyword counts.",
         ]
         if isinstance(data, dict):
@@ -32,8 +32,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         raw = await client.post("/sites/hierarchy/list")
         data = raw.get("hierarchyList", raw)
         hints = [
-            "Use the id field as site_id for v5.0 keyword tools. Use global_key (from list_sites) for get_keyword_performance and v5.1 tools.",
-            "Next step: call get_keyword_performance, get_mentions, or get_llm_stats with a site identifier.",
+            "Use the id field as site_id for v5.0 keyword tools. Use global_key (from list_sites) for serp_analytics(view='performance') and v5.1 tools.",
+            "Next step: call serp_analytics, get_mentions, or llm_analytics with a site identifier.",
         ]
         if isinstance(data, dict):
             data["hints"] = hints

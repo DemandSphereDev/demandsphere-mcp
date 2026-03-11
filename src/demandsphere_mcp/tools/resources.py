@@ -132,9 +132,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 ],
                 "default": "visits",
                 "note": (
-                    "Use with metric parameter in get_llm_performance_summary, "
-                    "get_channels_performance_summary, get_cross_channel_overview, "
-                    "and get_cross_llms_overview."
+                    "Use with metric parameter in llm_analytics "
+                    "(views: performance, channels, cross_channel, cross_llms)."
                 ),
             }
         )
@@ -155,7 +154,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "note": (
                     "Use 'id' as site_id for v5.0 SERP tools. "
                     "Use 'global_key' as site_global_key for v5.1 GenAI and brand tools, "
-                    "and as global_key for get_keyword_performance."
+                    "and as global_key for serp_analytics(view='performance')."
                 ),
             }
         )

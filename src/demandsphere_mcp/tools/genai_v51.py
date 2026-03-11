@@ -7,6 +7,16 @@ from mcp.server.fastmcp import FastMCP
 from ..client import DSClient, validate_path_param
 from .utils import safe_tool, clamp_limit, validate_date, validate_date_range, attach_hints
 
+_LLM_VIEWS = {"stats", "performance", "channels", "cross_channel", "cross_llms"}
+
+_LLM_ENDPOINTS = {
+    "stats": "stats",
+    "performance": "llms_performance_summary",
+    "channels": "channels_performance_summary",
+    "cross_channel": "cross_channel_overview",
+    "cross_llms": "cross_llms_overview",
+}
+
 
 def register(mcp: FastMCP, client: DSClient) -> None:
 
@@ -142,160 +152,77 @@ def register(mcp: FastMCP, client: DSClient) -> None:
 
     @mcp.tool()
     @safe_tool
-    async def get_llm_stats(
+    async def llm_analytics(
+        view: str,
         site_global_key: str,
         from_date: str | None = None,
         to_date: str | None = None,
+        metric: str = "visits",
         llms_list: str | None = None,
         channels_list: str | None = None,
     ) -> dict:
-        """Aggregated LLM traffic stats: visits, page views, performance metrics. Filter by LLM names or channels (comma-separated)."""
+        """LLM traffic analytics with multiple views. view='stats': aggregated traffic stats. view='performance': side-by-side LLM comparison. view='channels': per-channel comparison. view='cross_channel': cross-channel overview. view='cross_llms': cross-platform comparison. Use metric param for non-stats views. Filter with llms_list/channels_list (comma-separated) for stats/performance views."""
+        if view not in _LLM_VIEWS:
+            raise ValueError(
+                f"Invalid view '{view}'. Must be one of: {', '.join(sorted(_LLM_VIEWS))}"
+            )
+
         key = validate_path_param(site_global_key, "site_global_key")
         validate_date_range(from_date, to_date)
+
         params: dict = {}
         if from_date:
             params["from"] = from_date
         if to_date:
             params["to"] = to_date
-        if llms_list:
-            params["llms_list"] = llms_list
-        if channels_list:
-            params["channels_list"] = channels_list
+
+        # metric applies to all views except stats
+        if view != "stats":
+            params["metric"] = metric
+
+        # llms_list/channels_list only for stats and performance
+        if view in ("stats", "performance"):
+            if llms_list:
+                params["llms_list"] = llms_list
+            if channels_list:
+                params["channels_list"] = channels_list
+
+        endpoint = _LLM_ENDPOINTS[view]
         raw = await client.get(
-            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/stats",
+            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/{endpoint}",
             params=params,
         )
         result = client.shape_v51(raw)
-        return attach_hints(
-            result,
-            [
-                "Use get_llm_performance_summary for side-by-side LLM comparison.",
-                "Use get_cross_llms_overview to compare traffic across all LLM platforms.",
+
+        # View-specific hints
+        if view == "stats":
+            hints = [
+                "Use llm_analytics(view='performance') for side-by-side LLM comparison.",
+                "Use llm_analytics(view='cross_llms') to compare traffic across all LLM platforms.",
                 "Filter by llms_list or channels_list (comma-separated) to narrow results.",
-            ],
-        )
-
-    @mcp.tool()
-    @safe_tool
-    async def get_llm_performance_summary(
-        site_global_key: str,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        metric: str = "visits",
-        llms_list: str | None = None,
-        channels_list: str | None = None,
-    ) -> dict:
-        """Side-by-side performance comparison across LLMs. Metric: visits|page_views|new_visits|bounces|conversions|value."""
-        key = validate_path_param(site_global_key, "site_global_key")
-        validate_date_range(from_date, to_date)
-        params: dict = {"metric": metric}
-        if from_date:
-            params["from"] = from_date
-        if to_date:
-            params["to"] = to_date
-        if llms_list:
-            params["llms_list"] = llms_list
-        if channels_list:
-            params["channels_list"] = channels_list
-        raw = await client.get(
-            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/llms_performance_summary",
-            params=params,
-        )
-        result = client.shape_v51(raw)
-        return attach_hints(
-            result,
-            [
+            ]
+        elif view == "performance":
+            hints = [
                 f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
-                "Use get_channels_performance_summary to compare across traffic channels instead of LLMs.",
-            ],
-        )
-
-    @mcp.tool()
-    @safe_tool
-    async def get_channels_performance_summary(
-        site_global_key: str,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        metric: str = "visits",
-    ) -> dict:
-        """Performance comparison across traffic channels for LLM traffic."""
-        key = validate_path_param(site_global_key, "site_global_key")
-        validate_date_range(from_date, to_date)
-        params: dict = {"metric": metric}
-        if from_date:
-            params["from"] = from_date
-        if to_date:
-            params["to"] = to_date
-        raw = await client.get(
-            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/channels_performance_summary",
-            params=params,
-        )
-        result = client.shape_v51(raw)
-        return attach_hints(
-            result,
-            [
+                "Use llm_analytics(view='channels') to compare across traffic channels instead of LLMs.",
+            ]
+        elif view == "channels":
+            hints = [
                 f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
-                "Use get_llm_performance_summary to compare across LLM platforms instead of channels.",
-            ],
-        )
-
-    @mcp.tool()
-    @safe_tool
-    async def get_cross_channel_overview(
-        site_global_key: str,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        metric: str = "visits",
-    ) -> dict:
-        """Overview of LLM traffic across all channels."""
-        key = validate_path_param(site_global_key, "site_global_key")
-        validate_date_range(from_date, to_date)
-        params: dict = {"metric": metric}
-        if from_date:
-            params["from"] = from_date
-        if to_date:
-            params["to"] = to_date
-        raw = await client.get(
-            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/cross_channel_overview",
-            params=params,
-        )
-        result = client.shape_v51(raw)
-        return attach_hints(
-            result,
-            [
+                "Use llm_analytics(view='performance') to compare across LLM platforms instead of channels.",
+            ]
+        elif view == "cross_channel":
+            hints = [
                 f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
-                "Use get_channels_performance_summary for more detailed per-channel comparison.",
-            ],
-        )
-
-    @mcp.tool()
-    @safe_tool
-    async def get_cross_llms_overview(
-        site_global_key: str,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        metric: str = "visits",
-    ) -> dict:
-        """Compare traffic across all LLM platforms (ChatGPT, Gemini, Perplexity, etc.)."""
-        key = validate_path_param(site_global_key, "site_global_key")
-        validate_date_range(from_date, to_date)
-        params: dict = {"metric": metric}
-        if from_date:
-            params["from"] = from_date
-        if to_date:
-            params["to"] = to_date
-        raw = await client.get(
-            f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/cross_llms_overview",
-            params=params,
-        )
-        result = client.shape_v51(raw)
-        return attach_hints(
-            result,
-            [
+                "Use llm_analytics(view='channels') for more detailed per-channel comparison.",
+            ]
+        else:  # cross_llms
+            hints = [
                 f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
-                "Use get_llm_performance_summary for more detailed per-LLM comparison.",
-            ],
-        )
+                "Use llm_analytics(view='performance') for more detailed per-LLM comparison.",
+            ]
+
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -309,7 +236,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         return attach_hints(
             result,
             [
-                "Use the returned filter values as llms_list or channels_list parameters in get_llm_stats, get_llm_performance_summary, etc.",
+                "Use the returned filter values as llms_list or channels_list parameters in llm_analytics.",
             ],
         )
 
