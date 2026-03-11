@@ -259,6 +259,8 @@ class TestSafeTool:
         assert result["error_type"] == "auth_error"
         assert result["status_code"] == 401
         assert result["tool"] == "bad_tool"
+        assert "recovery_hint" in result
+        assert "DEMANDSPHERE_API_KEY" in result["recovery_hint"]
 
     @pytest.mark.asyncio
     async def test_catches_timeout(self):
@@ -269,6 +271,8 @@ class TestSafeTool:
         result = await timeout_tool()
         assert result["error"] is True
         assert result["error_type"] == "timeout"
+        assert "recovery_hint" in result
+        assert "smaller date range" in result["recovery_hint"]
 
     @pytest.mark.asyncio
     async def test_catches_network_error(self):
@@ -279,6 +283,8 @@ class TestSafeTool:
         result = await net_tool()
         assert result["error"] is True
         assert result["error_type"] == "network_error"
+        assert "recovery_hint" in result
+        assert "connectivity" in result["recovery_hint"]
 
     @pytest.mark.asyncio
     async def test_catches_unexpected_error(self):
@@ -290,6 +296,8 @@ class TestSafeTool:
         assert result["error"] is True
         assert result["error_type"] == "internal_error"
         assert result["status_code"] == 500
+        assert "recovery_hint" in result
+        assert "Retry once" in result["recovery_hint"]
 
     @pytest.mark.asyncio
     async def test_redacts_api_key_in_error(self):
@@ -300,6 +308,46 @@ class TestSafeTool:
         result = await leaky_tool()
         assert "secret123" not in result["message"]
         assert "api_key=[REDACTED]" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_recovery_hint_validation_error(self):
+        @safe_tool
+        async def val_tool() -> dict:
+            raise DSApiError(400, "Invalid date format")
+
+        result = await val_tool()
+        assert result["error_type"] == "validation_error"
+        assert "YYYY-MM-DD" in result["recovery_hint"]
+
+    @pytest.mark.asyncio
+    async def test_recovery_hint_not_found(self):
+        @safe_tool
+        async def missing_tool() -> dict:
+            raise DSApiError(404, "Site not found")
+
+        result = await missing_tool()
+        assert result["error_type"] == "not_found"
+        assert "list_sites" in result["recovery_hint"]
+
+    @pytest.mark.asyncio
+    async def test_recovery_hint_rate_limited(self):
+        @safe_tool
+        async def throttled_tool() -> dict:
+            raise DSApiError(429, "Too many requests")
+
+        result = await throttled_tool()
+        assert result["error_type"] == "rate_limited"
+        assert "Wait" in result["recovery_hint"]
+
+    @pytest.mark.asyncio
+    async def test_recovery_hint_upstream_error(self):
+        @safe_tool
+        async def upstream_tool() -> dict:
+            raise DSApiError(502, "Bad gateway")
+
+        result = await upstream_tool()
+        assert result["error_type"] == "upstream_error"
+        assert "server error" in result["recovery_hint"]
 
 
 # ── shape_tabular ─────────────────────────────────────────────────
