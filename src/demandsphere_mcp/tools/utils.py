@@ -38,6 +38,7 @@ MAX_DATE_RANGE_DAYS = 365  # max lookback window per tool call
 
 # ── Input validation helpers ──────────────────────────────────────────
 
+
 def clamp_limit(limit: int) -> int:
     """Clamp a pagination limit to the configured max. Prevents LLMs from requesting limit=100000."""
     return max(1, min(limit, settings.max_results_per_tool_call))
@@ -122,7 +123,10 @@ def redact_secrets(text: str) -> str:
 
 # ── Tool error handling decorator ─────────────────────────────────────
 
-def safe_tool(fn: Callable[..., Coroutine[Any, Any, dict]]) -> Callable[..., Coroutine[Any, Any, dict]]:
+
+def safe_tool(
+    fn: Callable[..., Coroutine[Any, Any, dict]],
+) -> Callable[..., Coroutine[Any, Any, dict]]:
     """Decorator that catches API and network errors, returning structured error dicts.
 
     Each error includes an ``error_type`` string so the LLM can decide
@@ -182,6 +186,74 @@ def safe_tool(fn: Callable[..., Coroutine[Any, Any, dict]]) -> Callable[..., Cor
             }
 
     return wrapper
+
+
+# ── Hint helpers ──────────────────────────────────────────────────
+
+
+def build_hints(
+    *,
+    total_count: int | None = None,
+    returned_count: int | None = None,
+    truncated: bool = False,
+    page_num: int | None = None,
+    limit: int | None = None,
+    extra: list[str] | None = None,
+) -> list[str]:
+    """Build context-aware hint strings for tool responses.
+
+    Handles common cases automatically (empty results, pagination,
+    truncation) and appends any tool-specific ``extra`` hints.
+    """
+    hints: list[str] = []
+
+    # Empty results
+    if returned_count is not None and returned_count == 0:
+        hints.append("No results returned. Try adjusting date range, search_engine, or filters.")
+        if extra:
+            hints.extend(extra)
+        return hints
+
+    # Truncation (max_results_per_tool_call cap hit)
+    if truncated and returned_count is not None:
+        hints.append(
+            f"Results were truncated to {returned_count} rows. "
+            "Use limit and page_num to paginate through all results."
+        )
+
+    # Pagination: more pages available
+    if (
+        total_count is not None
+        and returned_count is not None
+        and page_num is not None
+        and limit is not None
+        and total_count > 0
+    ):
+        fetched_so_far = (page_num - 1) * limit + returned_count
+        if fetched_so_far < total_count:
+            remaining = total_count - fetched_so_far
+            hints.append(
+                f"Page {page_num} of results. {remaining} more rows available. "
+                f"Set page_num={page_num + 1} to fetch the next page."
+            )
+
+    # Tool-specific extras
+    if extra:
+        hints.extend(extra)
+
+    return hints
+
+
+def attach_hints(response: dict, hints: list[str]) -> dict:
+    """Attach hints to a tool response dict.
+
+    Skips if response is an error or hints list is empty.
+    """
+    if response.get("error"):
+        return response
+    if hints:
+        response["hints"] = hints
+    return response
 
 
 def _classify_api_error(status_code: int) -> str:

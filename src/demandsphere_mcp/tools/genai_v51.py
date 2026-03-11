@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient, validate_path_param
-from .utils import safe_tool, clamp_limit, validate_date, validate_date_range
+from .utils import safe_tool, clamp_limit, validate_date, validate_date_range, attach_hints
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
@@ -33,7 +33,15 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         if keyword_names:
             params["keyword_names[]"] = keyword_names
         raw = await client.get(f"/v5_1/accounts/sites/{key}/mentions", params=params)
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Use get_keyword_citations to see citation URLs for a specific keyword.",
+                "Use get_site_citations for paginated citations across all keywords.",
+                "Filter by keyword_tags or keyword_names to narrow results.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -54,7 +62,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "query_keyword_name": keyword_name,
             },
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Use get_bulk_citations to fetch citations for multiple keywords in one call (max 50).",
+                "Use get_mentions for brand mention counts and context sentences.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -75,7 +90,16 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             },
             json_body={"query_keyword_names": keyword_names[:50]},
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        hints = [
+            "Use get_mentions for mention counts and context sentences alongside citation URLs."
+        ]
+        if len(keyword_names) > 50:
+            hints.insert(
+                0,
+                "Maximum 50 keywords per call reached. Make additional calls for remaining keywords.",
+            )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -100,7 +124,19 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         if keyword_tags:
             params["keyword_tags[]"] = keyword_tags
         raw = await client.get(f"/v5_1/accounts/sites/{key}/citations", params=params)
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        extra = [
+            "Use get_keyword_citations for detailed citations on a single keyword.",
+            "Use get_bulk_citations to fetch citations for up to 50 keywords at once.",
+        ]
+        records = result.get("records", []) if isinstance(result, dict) else []
+        if isinstance(records, list) and len(records) >= page_limit:
+            extra.insert(
+                0,
+                f"Received {len(records)} results (full page). "
+                f"There may be more — set page_number={page_number + 1} to continue.",
+            )
+        return attach_hints(result, extra)
 
     # ── LLM Traffic Analytics ─────────────────────────────────────────
 
@@ -129,7 +165,15 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/stats",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Use get_llm_performance_summary for side-by-side LLM comparison.",
+                "Use get_cross_llms_overview to compare traffic across all LLM platforms.",
+                "Filter by llms_list or channels_list (comma-separated) to narrow results.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -157,7 +201,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/llms_performance_summary",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
+                "Use get_channels_performance_summary to compare across traffic channels instead of LLMs.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -179,7 +230,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/channels_performance_summary",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
+                "Use get_llm_performance_summary to compare across LLM platforms instead of channels.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -201,7 +259,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/cross_channel_overview",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
+                "Use get_channels_performance_summary for more detailed per-channel comparison.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -223,7 +288,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/cross_llms_overview",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                f"Currently showing metric='{metric}'. Other options: visits, page_views, new_visits, bounces, conversions, value.",
+                "Use get_llm_performance_summary for more detailed per-LLM comparison.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -233,7 +305,13 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         raw = await client.get(
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/filters",
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Use the returned filter values as llms_list or channels_list parameters in get_llm_stats, get_llm_performance_summary, etc.",
+            ],
+        )
 
     # ── People Also Ask ───────────────────────────────────────────────
 
@@ -276,4 +354,16 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             f"/v5_1/accounts/sites/{key}/people_also_asks",
             params=params,
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        extra: list[str] = []
+        records = result.get("records", []) if isinstance(result, dict) else []
+        if isinstance(records, list) and len(records) >= page_limit:
+            extra.append(
+                f"Received {len(records)} results (full page). "
+                f"There may be more — set page_number={page_number + 1} to continue.",
+            )
+        if not include_search_intents:
+            extra.append("Set include_search_intents=True to add search intent data.")
+        if not include_adword_stats:
+            extra.append("Set include_adword_stats=True to add volume, CPC, and competition data.")
+        return attach_hints(result, extra)

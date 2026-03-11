@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -50,12 +49,31 @@ def register(mcp: FastMCP, client: DSClient) -> None:
 
         _ROUTES = [
             (
-                ["ranking", "keyword", "serp", "position", "rank", "performance", "traffic", "search volume"],
+                [
+                    "ranking",
+                    "keyword",
+                    "serp",
+                    "position",
+                    "rank",
+                    "performance",
+                    "traffic",
+                    "search volume",
+                ],
                 "keyword_performance",
                 "Keyword ranking data. Use get_keyword_performance for full results.",
             ),
             (
-                ["mention", "cited", "citation", "ai", "chatgpt", "gemini", "perplexity", "genai", "brand"],
+                [
+                    "mention",
+                    "cited",
+                    "citation",
+                    "ai",
+                    "chatgpt",
+                    "gemini",
+                    "perplexity",
+                    "genai",
+                    "brand",
+                ],
                 "mentions",
                 "AI mention/citation data. Use get_mentions or get_site_citations for full results.",
             ),
@@ -79,19 +97,30 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         for keywords, record_type, description in _ROUTES:
             if any(kw in query_lower for kw in keywords):
                 rid = _make_id(record_type, query)
-                _record_cache.put(rid, {"type": record_type, "query": query, "description": description})
+                _record_cache.put(
+                    rid, {"type": record_type, "query": query, "description": description}
+                )
                 ids.append(rid)
 
         if not ids:
             rid = _make_id("general", query)
-            _record_cache.put(rid, {
-                "type": "general",
-                "query": query,
-                "description": "No specific match. Try queries about rankings, AI mentions, LLM traffic, or PAA questions.",
-            })
+            _record_cache.put(
+                rid,
+                {
+                    "type": "general",
+                    "query": query,
+                    "description": "No specific match. Try queries about rankings, AI mentions, LLM traffic, or PAA questions.",
+                },
+            )
             ids.append(rid)
 
-        return {"ids": ids}
+        return {
+            "ids": ids,
+            "hints": [
+                "Use fetch(record_id) to get details for each returned ID.",
+                "For direct data access, use the specific tool mentioned in each record's description.",
+            ],
+        }
 
     @mcp.tool()
     @safe_tool
@@ -99,7 +128,13 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Fetch a record by ID from a previous search() call."""
         record = _record_cache.get(record_id)
         if record:
-            return {"id": record_id, **record}
+            return {
+                "id": record_id,
+                **record,
+                "hints": [
+                    "Use the specific tool mentioned in the description for full results.",
+                ],
+            }
         return {"id": record_id, "error": "Not found. Try searching again."}
 
 
