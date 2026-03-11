@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient
-from .utils import safe_tool, validate_str
+from .utils import safe_tool, validate_str, attach_hints
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
@@ -19,7 +19,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             "/api/v5_1/brands/list_brands",
             params={"global_key": global_key},
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Use create_brand to add a new brand for GenAI visibility tracking.",
+                "Brand names are used by get_mentions and citation tools to track AI mentions.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -38,7 +45,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "brand_description": brand_description,
             },
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Brand created. Use list_brands to verify.",
+                "Use get_mentions with this site to see AI mentions for the new brand.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -56,7 +70,13 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         if brand_description is not None:
             body["brand_description"] = brand_description
         raw = await client.post("/api/v5_1/brands/update_brand", json_body=body)
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Brand updated. Use list_brands to verify the changes.",
+            ],
+        )
 
     @mcp.tool()
     @safe_tool
@@ -70,4 +90,10 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             "/api/v5_1/brands/delete_brands",
             json_body={"global_key": global_key, "brand_ids": brand_ids},
         )
-        return client.shape_v51(raw)
+        result = client.shape_v51(raw)
+        return attach_hints(
+            result,
+            [
+                "Brands deleted. Use list_brands to verify.",
+            ],
+        )

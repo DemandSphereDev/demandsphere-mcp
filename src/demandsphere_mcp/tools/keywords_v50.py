@@ -11,7 +11,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient
-from .utils import safe_tool, clamp_limit, validate_date_range
+from .utils import safe_tool, clamp_limit, validate_date_range, build_hints, attach_hints
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
@@ -46,7 +46,19 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=[
+                "Use get_ranking_trends with site_id to see position history over time.",
+                "Use get_landing_matches to check if the right pages are ranking.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -78,7 +90,19 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=[
+                "Use get_ranking_trends with grouped=True to see rank trends by group.",
+                "Use get_keyword_performance with global_key for per-keyword detail.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -111,7 +135,21 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         if grouped:
             params["grouped"] = "true"
         raw = await client.post("/keywords/ranking_trends/list", params=params)
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        extra = []
+        if grouped:
+            extra.append("Set grouped=False to see individual keyword trends.")
+        else:
+            extra.append("Set grouped=True to aggregate trends by keyword tag.")
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=extra,
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -144,7 +182,19 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         if grouped:
             params["grouped"] = "true"
         raw = await client.post("/keywords/search_engines/list", params=params)
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=[
+                "Pass multiple search engines comma-separated (e.g. 'google_us,bing_us') to compare.",
+                "Use get_keyword_performance for detailed per-keyword metrics on a single engine.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -175,7 +225,18 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=[
+                "Results are per-location. Use get_ranking_trends for non-local rank history.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -207,7 +268,18 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            page_num=page_num,
+            limit=limit,
+            extra=[
+                "Use get_landings_history with a specific keyword_id to see which pages ranked over time.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -230,7 +302,16 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "to": to_date,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            extra=[
+                "Use get_landing_matches to see match/mismatch status across all keywords.",
+            ],
+        )
+        return attach_hints(result, hints)
 
     @mcp.tool()
     @safe_tool
@@ -253,4 +334,14 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "granularity": granularity,
             },
         )
-        return client.shape_tabular(raw)
+        result = client.shape_tabular(raw)
+        hints = build_hints(
+            total_count=result.get("total_count"),
+            returned_count=result.get("returned_count"),
+            truncated=result.get("truncated", False),
+            extra=[
+                "Use get_keyword_performance for per-keyword breakdown.",
+                "Use get_ranking_trends for position history over time.",
+            ],
+        )
+        return attach_hints(result, hints)
