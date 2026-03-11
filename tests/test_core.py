@@ -1,325 +1,468 @@
-"""Async HTTP client for the DemandSphere API.
-
-Handles:
-- API key injection (query param ``api_key``)
-- Client-side rate limiting (token bucket, per-key in hosted mode)
-- Retry with backoff for transient failures (429, 5xx)
-- Response shaping (truncate large payloads for LLM token budgets)
-- Path parameter sanitization
-- Unified error handling
-
-Security note: The DemandSphere API uses query-parameter auth, which means
-API keys appear in URLs. The httpx client is configured to suppress request
-logging to avoid leaking keys to log aggregators. If deploying behind a
-reverse proxy, ensure access logs either strip query strings or are treated
-as sensitive.
-"""
+"""Unit tests for core components: validators, response shaping, error handling, rate limiter, redaction."""
 
 from __future__ import annotations
 
-import asyncio
-import atexit
-import logging
-import random
-import re
-import time
-from typing import Any
-
 import httpx
+import pytest
 
-from .config import settings
-from . import __version__
-
-logger = logging.getLogger("demandsphere_mcp.client")
-
-# Suppress httpx/httpcore request logging — it logs full URLs including api_key query params.
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-
-# Characters allowed in URL path segments (site keys, keyword IDs, etc.)
-_SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-
-# Max retries for transient failures
-_MAX_RETRIES = 2
-_RETRY_BACKOFF = 1.0  # seconds, doubles each retry
-_RETRY_JITTER = 0.25  # max random jitter added to backoff (prevents thundering herd)
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-
-
-def _retry_delay(attempt: int) -> float:
-    """Exponential backoff with jitter."""
-    return _RETRY_BACKOFF * (2 ** attempt) + random.uniform(0, _RETRY_JITTER)
+from demandsphere_mcp.client import (
+    DSApiError,
+    DSClient,
+    RateLimiter,
+    validate_path_param,
+    _flatten_row,
+)
+from demandsphere_mcp.tools.utils import (
+    clamp_limit,
+    validate_date,
+    validate_date_range,
+    validate_str,
+    redact_url,
+    redact_secrets,
+    safe_tool,
+    _classify_api_error,
+)
 
 
-def validate_path_param(value: str, name: str = "parameter") -> str:
-    """Validate that a path parameter is safe to interpolate into a URL.
-
-    Prevents path traversal attacks like ``../../admin`` and bare ``..``
-    segments (which some proxies/frameworks normalize).
-    """
-    if not value or not _SAFE_PATH_RE.match(value):
-        raise DSApiError(
-            400,
-            f"Invalid {name}: must contain only alphanumeric characters, "
-            f"hyphens, underscores, and dots. Got: {value!r}",
-        )
-    # Reject '.' and '..' even though they match the character class —
-    # these are traversal segments that proxies may normalize.
-    if value in (".", "..") or ".." in value:
-        raise DSApiError(
-            400,
-            f"Invalid {name}: path traversal segments not allowed. Got: {value!r}",
-        )
-    return value
+# ── validate_date ─────────────────────────────────────────────────
 
 
-class RateLimiter:
-    """Token-bucket rate limiter with burst cap.
+class TestValidateDate:
+    def test_valid_date(self):
+        assert validate_date("2025-01-15") == "2025-01-15"
 
-    In stdio mode (single user) this is a single global bucket.
-    For hosted multi-user deployments, create one RateLimiter per user
-    in the auth middleware layer — this class itself is user-agnostic.
+    def test_valid_leap_day(self):
+        assert validate_date("2024-02-29") == "2024-02-29"
 
-    Args:
-        max_per_minute: Sustained rate limit.
-        max_burst: Maximum tokens available at any instant (caps the
-                   initial burst and refill ceiling). Defaults to
-                   max_per_minute / 6 (i.e. ~10 for 60/min).
-    """
+    def test_invalid_format(self):
+        with pytest.raises(DSApiError, match="Invalid date"):
+            validate_date("01-15-2025")
 
-    def __init__(self, max_per_minute: int, max_burst: int | None = None) -> None:
-        self._max = max_per_minute
-        self._burst = max_burst if max_burst is not None else max(1, max_per_minute // 6)
-        self._tokens = float(self._burst)
-        self._last = time.monotonic()
-        self._lock = asyncio.Lock()
+    def test_invalid_string(self):
+        with pytest.raises(DSApiError):
+            validate_date("not-a-date")
 
-    async def acquire(self) -> None:
-        async with self._lock:
-            now = time.monotonic()
-            elapsed = now - self._last
-            self._tokens = min(self._burst, self._tokens + elapsed * (self._max / 60.0))
-            self._last = now
-            if self._tokens < 1:
-                wait = (1 - self._tokens) / (self._max / 60.0)
-                await asyncio.sleep(wait)
-                self._tokens = 0
-            else:
-                self._tokens -= 1
+    def test_empty_string(self):
+        with pytest.raises(DSApiError):
+            validate_date("")
+
+    def test_custom_name(self):
+        with pytest.raises(DSApiError, match="target_date"):
+            validate_date("bad", "target_date")
 
 
-class DSApiError(Exception):
-    """Raised when the DemandSphere API returns a non-200 response."""
-
-    def __init__(self, status_code: int, detail: str) -> None:
-        self.status_code = status_code
-        self.detail = detail
-        super().__init__(f"DS API {status_code}: {detail}")
+# ── validate_date_range ───────────────────────────────────────────
 
 
-class DSClient:
-    """Async wrapper around the DemandSphere REST API.
+class TestValidateDateRange:
+    def test_valid_range(self):
+        validate_date_range("2025-01-01", "2025-01-31")
 
-    Implements async context manager for proper resource cleanup::
+    def test_none_dates_ok(self):
+        validate_date_range(None, None)
+        validate_date_range("2025-01-01", None)
+        validate_date_range(None, "2025-01-31")
 
-        async with DSClient() as client:
-            data = await client.get("/endpoint")
-    """
+    def test_from_after_to(self):
+        with pytest.raises(DSApiError, match="must be before"):
+            validate_date_range("2025-02-01", "2025-01-01")
 
-    def __init__(
-        self,
-        api_key: str | None = None,
-        base_url: str | None = None,
-    ) -> None:
-        self._api_key = api_key or settings.api_key
-        self._base_url = (base_url or settings.base_url).rstrip("/")
-        self._limiter = RateLimiter(settings.max_requests_per_minute)
-        self._http = httpx.AsyncClient(
-            timeout=httpx.Timeout(
-                connect=5.0,
-                read=settings.request_timeout,
-                write=10.0,
-                pool=5.0,
-            ),
-            headers={
-                "Accept": "application/json",
-                "User-Agent": f"demandsphere-mcp/{__version__}",
-            },
-        )
+    def test_exceeds_max_range(self):
+        with pytest.raises(DSApiError, match="365 day maximum"):
+            validate_date_range("2024-01-01", "2025-06-01")
 
-        # Best-effort cleanup if the client is never explicitly closed.
-        # In stdio mode the process exits anyway; in HTTP mode this
-        # ensures the connection pool is drained on graceful shutdown.
-        atexit.register(self._sync_close)
+    def test_invalid_from_format(self):
+        with pytest.raises(DSApiError, match="from_date"):
+            validate_date_range("bad", "2025-01-01")
 
-    async def __aenter__(self) -> "DSClient":
-        return self
+    def test_invalid_to_format(self):
+        with pytest.raises(DSApiError, match="to_date"):
+            validate_date_range("2025-01-01", "bad")
 
-    async def __aexit__(self, *exc: object) -> None:
-        await self.close()
+    def test_same_day_ok(self):
+        validate_date_range("2025-06-15", "2025-06-15")
 
-    async def close(self) -> None:
-        atexit.unregister(self._sync_close)
-        await self._http.aclose()
-
-    def _sync_close(self) -> None:
-        """Synchronous close for atexit — best-effort connection pool cleanup."""
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._http.aclose())
-        except RuntimeError:
-            # No running loop — safe to create one for cleanup
-            try:
-                asyncio.run(self._http.aclose())
-            except Exception:
-                pass
-        except Exception:
-            pass  # atexit — swallow errors during interpreter shutdown
-
-    # ── Core request methods ──────────────────────────────────────────
-
-    def _inject_auth(self, params: dict) -> dict:
-        """Add api_key to query params — the DS auth mechanism."""
-        params = dict(params) if params else {}
-        params["api_key"] = self._api_key
-        return params
-
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        params: dict | None = None,
-        json_body: dict | None = None,
-    ) -> dict[str, Any]:
-        await self._limiter.acquire()
-
-        url = f"{self._base_url}{path}"
-        authed_params = self._inject_auth(params or {})
-
-        last_exc: Exception | None = None
-        for attempt in range(_MAX_RETRIES + 1):
-            try:
-                resp = await self._http.request(
-                    method,
-                    url,
-                    params=authed_params,
-                    json=json_body,
-                )
-            except httpx.TimeoutException:
-                last_exc = DSApiError(408, "Request timed out.")
-                if attempt < _MAX_RETRIES:
-                    await asyncio.sleep(_retry_delay(attempt))
-                    continue
-                raise last_exc
-            except httpx.HTTPError as exc:
-                last_exc = DSApiError(0, f"Network error: {type(exc).__name__}")
-                if attempt < _MAX_RETRIES:
-                    await asyncio.sleep(_retry_delay(attempt))
-                    continue
-                raise last_exc
-
-            # Retry on transient server errors
-            if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
-                await asyncio.sleep(_retry_delay(attempt))
-                continue
-
-            break
-
-        # Raise structured errors (sanitize response body — don't leak internals)
-        if resp.status_code == 401:
-            raise DSApiError(401, "Invalid or missing API key.")
-        if resp.status_code == 403:
-            raise DSApiError(403, "Forbidden — check API key permissions.")
-        if resp.status_code == 404:
-            raise DSApiError(404, "Resource not found.")
-        if resp.status_code >= 400:
-            # Sanitize: only include a generic message, not raw response body
-            raise DSApiError(
-                resp.status_code,
-                f"API request failed with status {resp.status_code}.",
-            )
-
-        try:
-            return resp.json()
-        except ValueError:
-            raise DSApiError(
-                resp.status_code,
-                "API returned non-JSON response.",
-            )
-
-    async def get(self, path: str, params: dict | None = None) -> dict[str, Any]:
-        return await self._request("GET", path, params=params)
-
-    async def post(
-        self,
-        path: str,
-        params: dict | None = None,
-        json_body: dict | None = None,
-    ) -> dict[str, Any]:
-        return await self._request("POST", path, params=params, json_body=json_body)
-
-    # ── Response shaping ──────────────────────────────────────────────
-
-    @staticmethod
-    def shape_tabular(
-        raw: dict[str, Any],
-        max_rows: int | None = None,
-    ) -> dict[str, Any]:
-        """Trim tabular API responses to stay within LLM token budgets.
-
-        The v5.0 API wraps everything in ``tabularData[0].results``.
-        We extract the results array, trim it, and attach page_info so
-        the LLM knows there are more rows available.
-        """
-        cap = max_rows or settings.max_results_per_tool_call
-
-        tabular = raw.get("tabularData")
-        if not tabular or not isinstance(tabular, list) or len(tabular) == 0:
-            return raw
-
-        block = tabular[0]
-        results = block.get("results", [])
-        page_info = block.get("page_info", {})
-        total = page_info.get("total_count", len(results))
-
-        flat_results = [_flatten_row(r) for r in results[:cap]]
-
-        return {
-            "results": flat_results,
-            "total_count": total,
-            "returned_count": len(flat_results),
-            "truncated": len(results) > cap,
-        }
-
-    @staticmethod
-    def shape_v51(raw: dict[str, Any]) -> dict[str, Any]:
-        """Shape v5.1 responses, checking for error status."""
-        # v5.1 API returns "status": "ok" or "success" for good responses,
-        # and "status": "error" (or other values) for failures — even in HTTP 200s.
-        status = raw.get("status")
-        if status and status not in ("success", "ok"):
-            return {
-                "error": True,
-                "status": status,
-                "message": raw.get("message", "Unknown error"),
-            }
-
-        if "data" in raw:
-            return raw["data"] if isinstance(raw["data"], dict) else {"records": raw["data"]}
-        return raw
+    def test_exactly_365_days(self):
+        validate_date_range("2025-01-01", "2025-12-31")
 
 
-def _flatten_row(row: dict) -> dict:
-    """Convert {field: {label, value, dataType}} → {field: value}."""
-    out = {}
-    for key, val in row.items():
-        if isinstance(val, dict) and "value" in val:
-            out[key] = val["value"]
-        elif isinstance(val, list):
-            out[key] = [
-                item.get("value", item) if isinstance(item, dict) else item
-                for item in val
+# ── validate_str ──────────────────────────────────────────────────
+
+
+class TestValidateStr:
+    def test_valid_string(self):
+        assert validate_str("hello", "param") == "hello"
+
+    def test_strips_whitespace(self):
+        assert validate_str("  hello  ", "param") == "hello"
+
+    def test_empty_string(self):
+        with pytest.raises(DSApiError, match="must not be empty"):
+            validate_str("", "site_id")
+
+    def test_whitespace_only(self):
+        with pytest.raises(DSApiError, match="must not be empty"):
+            validate_str("   ", "site_id")
+
+
+# ── clamp_limit ───────────────────────────────────────────────────
+
+
+class TestClampLimit:
+    def test_within_range(self):
+        assert clamp_limit(25) == 25
+
+    def test_zero_becomes_one(self):
+        assert clamp_limit(0) == 1
+
+    def test_negative_becomes_one(self):
+        assert clamp_limit(-5) == 1
+
+    def test_very_large_clamped(self):
+        result = clamp_limit(999999)
+        assert result <= 100  # default max_results_per_tool_call
+
+
+# ── validate_path_param ───────────────────────────────────────────
+
+
+class TestValidatePathParam:
+    def test_valid_alphanumeric(self):
+        assert validate_path_param("site123") == "site123"
+
+    def test_valid_with_hyphens(self):
+        assert validate_path_param("my-site-key") == "my-site-key"
+
+    def test_valid_with_underscores(self):
+        assert validate_path_param("my_site_key") == "my_site_key"
+
+    def test_valid_with_dots(self):
+        assert validate_path_param("site.key.v2") == "site.key.v2"
+
+    def test_empty_string(self):
+        with pytest.raises(DSApiError):
+            validate_path_param("")
+
+    def test_path_traversal_dotdot(self):
+        with pytest.raises(DSApiError, match="traversal"):
+            validate_path_param("..")
+
+    def test_path_traversal_embedded(self):
+        with pytest.raises(DSApiError, match="traversal"):
+            validate_path_param("foo..bar")
+
+    def test_single_dot(self):
+        with pytest.raises(DSApiError, match="traversal"):
+            validate_path_param(".")
+
+    def test_special_chars_rejected(self):
+        with pytest.raises(DSApiError):
+            validate_path_param("site/key")
+
+    def test_spaces_rejected(self):
+        with pytest.raises(DSApiError):
+            validate_path_param("site key")
+
+
+# ── redact_url ────────────────────────────────────────────────────
+
+
+class TestRedactUrl:
+    def test_strips_query_params(self):
+        result = redact_url("https://api.example.com/path?api_key=secret&foo=bar")
+        assert "secret" not in result
+        assert "[REDACTED]" in result
+
+    def test_no_query_params(self):
+        result = redact_url("https://api.example.com/path")
+        assert result == "https://api.example.com/path"
+        assert "[REDACTED]" not in result
+
+    def test_preserves_path(self):
+        result = redact_url("https://api.example.com/v5/keywords?key=val")
+        assert "/v5/keywords" in result
+
+
+# ── redact_secrets ────────────────────────────────────────────────
+
+
+class TestRedactSecrets:
+    def test_scrubs_api_key(self):
+        result = redact_secrets("api_key=abc123def456 some text")
+        assert "abc123" not in result
+        assert "api_key=[REDACTED]" in result
+
+    def test_no_api_key(self):
+        result = redact_secrets("some normal text")
+        assert result == "some normal text"
+
+    def test_multiple_occurrences(self):
+        result = redact_secrets("api_key=first&api_key=second")
+        assert "first" not in result
+        assert "second" not in result
+
+    def test_case_insensitive(self):
+        result = redact_secrets("API_KEY=secret123")
+        assert "secret123" not in result
+
+
+# ── _classify_api_error ───────────────────────────────────────────
+
+
+class TestClassifyApiError:
+    def test_400_validation(self):
+        assert _classify_api_error(400) == "validation_error"
+
+    def test_401_auth(self):
+        assert _classify_api_error(401) == "auth_error"
+
+    def test_403_auth(self):
+        assert _classify_api_error(403) == "auth_error"
+
+    def test_404_not_found(self):
+        assert _classify_api_error(404) == "not_found"
+
+    def test_429_rate_limited(self):
+        assert _classify_api_error(429) == "rate_limited"
+
+    def test_500_upstream(self):
+        assert _classify_api_error(500) == "upstream_error"
+
+    def test_502_upstream(self):
+        assert _classify_api_error(502) == "upstream_error"
+
+    def test_unknown_status(self):
+        assert _classify_api_error(418) == "upstream_error"
+
+
+# ── safe_tool decorator ──────────────────────────────────────────
+
+
+class TestSafeTool:
+    @pytest.mark.asyncio
+    async def test_passes_through_success(self):
+        @safe_tool
+        async def good_tool() -> dict:
+            return {"data": "ok"}
+
+        result = await good_tool()
+        assert result == {"data": "ok"}
+
+    @pytest.mark.asyncio
+    async def test_catches_ds_api_error(self):
+        @safe_tool
+        async def bad_tool() -> dict:
+            raise DSApiError(401, "Invalid API key")
+
+        result = await bad_tool()
+        assert result["error"] is True
+        assert result["error_type"] == "auth_error"
+        assert result["status_code"] == 401
+        assert result["tool"] == "bad_tool"
+
+    @pytest.mark.asyncio
+    async def test_catches_timeout(self):
+        @safe_tool
+        async def timeout_tool() -> dict:
+            raise httpx.ReadTimeout("read timeout")
+
+        result = await timeout_tool()
+        assert result["error"] is True
+        assert result["error_type"] == "timeout"
+
+    @pytest.mark.asyncio
+    async def test_catches_network_error(self):
+        @safe_tool
+        async def net_tool() -> dict:
+            raise httpx.ConnectError("connection refused")
+
+        result = await net_tool()
+        assert result["error"] is True
+        assert result["error_type"] == "network_error"
+
+    @pytest.mark.asyncio
+    async def test_catches_unexpected_error(self):
+        @safe_tool
+        async def crash_tool() -> dict:
+            raise RuntimeError("unexpected")
+
+        result = await crash_tool()
+        assert result["error"] is True
+        assert result["error_type"] == "internal_error"
+        assert result["status_code"] == 500
+
+    @pytest.mark.asyncio
+    async def test_redacts_api_key_in_error(self):
+        @safe_tool
+        async def leaky_tool() -> dict:
+            raise DSApiError(400, "Bad request at url?api_key=secret123")
+
+        result = await leaky_tool()
+        assert "secret123" not in result["message"]
+        assert "api_key=[REDACTED]" in result["message"]
+
+
+# ── shape_tabular ─────────────────────────────────────────────────
+
+
+class TestShapeTabular:
+    def test_extracts_and_flattens(self):
+        raw = {
+            "tabularData": [
+                {
+                    "results": [
+                        {"keyword": {"value": "seo", "label": "Keyword"}},
+                        {"keyword": {"value": "mcp", "label": "Keyword"}},
+                    ],
+                    "page_info": {"total_count": 100},
+                }
             ]
-        else:
-            out[key] = val
-    return out
+        }
+        result = DSClient.shape_tabular(raw, max_rows=10)
+        assert result["total_count"] == 100
+        assert result["returned_count"] == 2
+        assert result["truncated"] is False
+        assert result["results"][0] == {"keyword": "seo"}
+        assert result["results"][1] == {"keyword": "mcp"}
+
+    def test_truncates_when_over_cap(self):
+        results = [{"kw": {"value": f"kw{i}"}} for i in range(20)]
+        raw = {"tabularData": [{"results": results, "page_info": {"total_count": 200}}]}
+        result = DSClient.shape_tabular(raw, max_rows=5)
+        assert result["returned_count"] == 5
+        assert result["truncated"] is True
+        assert result["total_count"] == 200
+
+    def test_no_tabular_data_returns_raw(self):
+        raw = {"some_other": "data"}
+        assert DSClient.shape_tabular(raw) == raw
+
+    def test_empty_tabular_array(self):
+        raw = {"tabularData": []}
+        assert DSClient.shape_tabular(raw) == raw
+
+    def test_total_count_fallback(self):
+        """When page_info is missing, total_count falls back to len(results)."""
+        raw = {
+            "tabularData": [
+                {
+                    "results": [{"kw": {"value": "a"}}, {"kw": {"value": "b"}}],
+                }
+            ]
+        }
+        result = DSClient.shape_tabular(raw, max_rows=10)
+        assert result["total_count"] == 2
+
+
+# ── shape_v51 ─────────────────────────────────────────────────────
+
+
+class TestShapeV51:
+    def test_success_with_dict_data(self):
+        raw = {"status": "ok", "data": {"records": [1, 2, 3]}}
+        result = DSClient.shape_v51(raw)
+        assert result == {"records": [1, 2, 3]}
+
+    def test_success_with_list_data(self):
+        raw = {"status": "success", "data": [1, 2, 3]}
+        result = DSClient.shape_v51(raw)
+        assert result == {"records": [1, 2, 3]}
+
+    def test_error_status(self):
+        raw = {"status": "error", "message": "Something went wrong"}
+        result = DSClient.shape_v51(raw)
+        assert result["error"] is True
+        assert result["status"] == "error"
+        assert result["message"] == "Something went wrong"
+
+    def test_error_missing_message(self):
+        raw = {"status": "failed"}
+        result = DSClient.shape_v51(raw)
+        assert result["error"] is True
+        assert result["message"] == "Unknown error"
+
+    def test_no_status_no_data(self):
+        raw = {"something": "else"}
+        result = DSClient.shape_v51(raw)
+        assert result == raw
+
+    def test_no_status_with_data(self):
+        raw = {"data": {"key": "val"}}
+        result = DSClient.shape_v51(raw)
+        assert result == {"key": "val"}
+
+
+# ── _flatten_row ──────────────────────────────────────────────────
+
+
+class TestFlattenRow:
+    def test_extracts_value(self):
+        row = {"keyword": {"value": "seo", "label": "Keyword", "dataType": "string"}}
+        assert _flatten_row(row) == {"keyword": "seo"}
+
+    def test_passes_through_plain(self):
+        row = {"count": 42}
+        assert _flatten_row(row) == {"count": 42}
+
+    def test_handles_list_of_dicts(self):
+        row = {"tags": [{"value": "a"}, {"value": "b"}]}
+        assert _flatten_row(row) == {"tags": ["a", "b"]}
+
+    def test_handles_list_of_plain(self):
+        row = {"tags": ["a", "b"]}
+        assert _flatten_row(row) == {"tags": ["a", "b"]}
+
+    def test_mixed_row(self):
+        row = {
+            "keyword": {"value": "seo", "label": "KW"},
+            "rank": 5,
+            "tags": [{"value": "branded"}, "generic"],
+        }
+        result = _flatten_row(row)
+        assert result == {"keyword": "seo", "rank": 5, "tags": ["branded", "generic"]}
+
+
+# ── RateLimiter ───────────────────────────────────────────────────
+
+
+class TestRateLimiter:
+    def test_default_burst(self):
+        limiter = RateLimiter(60)
+        assert limiter._burst == 10  # 60 // 6
+
+    def test_custom_burst(self):
+        limiter = RateLimiter(60, max_burst=5)
+        assert limiter._burst == 5
+
+    def test_min_burst(self):
+        limiter = RateLimiter(1)
+        assert limiter._burst == 1  # max(1, 1//6) = 1
+
+    @pytest.mark.asyncio
+    async def test_acquire_consumes_token(self):
+        limiter = RateLimiter(60, max_burst=3)
+        limiter._tokens = 3.0
+        await limiter.acquire()
+        assert limiter._tokens < 3.0
+
+    @pytest.mark.asyncio
+    async def test_burst_acquires_succeed(self):
+        """Multiple acquires within burst limit should not block significantly."""
+        limiter = RateLimiter(600, max_burst=10)
+        for _ in range(5):
+            await limiter.acquire()
+
+
+# ── DSApiError ────────────────────────────────────────────────────
+
+
+class TestDSApiError:
+    def test_attributes(self):
+        err = DSApiError(404, "Not found")
+        assert err.status_code == 404
+        assert err.detail == "Not found"
+
+    def test_str_representation(self):
+        err = DSApiError(500, "Server error")
+        assert "500" in str(err)
+        assert "Server error" in str(err)
