@@ -121,6 +121,44 @@ def redact_secrets(text: str) -> str:
     return _SECRET_PATTERN.sub("api_key=[REDACTED]", text)
 
 
+# ── Recovery hints for error responses ─────────────────────────────────
+
+_RECOVERY_HINTS: dict[str, str] = {
+    "validation_error": (
+        "Check parameter formats: dates must be YYYY-MM-DD, "
+        "date ranges max 365 days, string params must not be empty."
+    ),
+    "auth_error": (
+        "Check that DEMANDSPHERE_API_KEY is set and valid. "
+        "Keys can be generated at app.demandsphere.com/settings."
+    ),
+    "not_found": (
+        "Resource not found. Call list_sites or list_sites_flat "
+        "to discover available site IDs and global keys."
+    ),
+    "rate_limited": (
+        "Rate limit reached. Wait a moment and retry — "
+        "the built-in rate limiter will handle backoff automatically."
+    ),
+    "timeout": ("Request timed out. Retry with a smaller date range or lower limit."),
+    "upstream_error": (
+        "The DemandSphere API returned a server error. Retry once after a brief wait."
+    ),
+    "network_error": (
+        "Could not connect to the DemandSphere API. Check network connectivity and retry."
+    ),
+    "internal_error": (
+        "An unexpected error occurred. Retry once — "
+        "if it persists, the issue may need investigation."
+    ),
+}
+
+
+def _recovery_hint(error_type: str) -> str:
+    """Return actionable recovery guidance for a given error type."""
+    return _RECOVERY_HINTS.get(error_type, _RECOVERY_HINTS["internal_error"])
+
+
 # ── Tool error handling decorator ─────────────────────────────────────
 
 
@@ -155,6 +193,7 @@ def safe_tool(
                 "error_type": error_type,
                 "status_code": exc.status_code,
                 "message": detail,
+                "recovery_hint": _recovery_hint(error_type),
                 "tool": fn.__name__,
             }
         except httpx.TimeoutException:
@@ -164,6 +203,7 @@ def safe_tool(
                 "error_type": "timeout",
                 "status_code": 408,
                 "message": "Request timed out. Try again or use a smaller date range / limit.",
+                "recovery_hint": _recovery_hint("timeout"),
                 "tool": fn.__name__,
             }
         except httpx.HTTPError as exc:
@@ -173,6 +213,7 @@ def safe_tool(
                 "error_type": "network_error",
                 "status_code": 0,
                 "message": f"Network error: {type(exc).__name__}",
+                "recovery_hint": _recovery_hint("network_error"),
                 "tool": fn.__name__,
             }
         except Exception:
@@ -182,6 +223,7 @@ def safe_tool(
                 "error_type": "internal_error",
                 "status_code": 500,
                 "message": "Internal error. Please try again.",
+                "recovery_hint": _recovery_hint("internal_error"),
                 "tool": fn.__name__,
             }
 
