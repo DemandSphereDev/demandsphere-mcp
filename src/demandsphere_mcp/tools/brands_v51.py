@@ -34,9 +34,20 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         global_key: str,
         brand_name: str,
         brand_description: str = "",
+        dry_run: bool = False,
     ) -> dict:
         """Create a new brand for GenAI visibility tracking."""
         global_key = validate_str(global_key, "global_key")
+        if dry_run:
+            return {
+                "dry_run": True,
+                "action": "create_brand",
+                "would_create": {
+                    "brand_name": brand_name,
+                    "brand_description": brand_description,
+                },
+                "hints": ["Set dry_run=False to execute this action."],
+            }
         raw = await client.post(
             "/api/v5_1/brands",
             json_body={
@@ -61,9 +72,23 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         brand_id: int,
         brand_name: str | None = None,
         brand_description: str | None = None,
+        dry_run: bool = False,
     ) -> dict:
         """Update an existing brand's name or description."""
         global_key = validate_str(global_key, "global_key")
+        if dry_run:
+            changes: dict = {}
+            if brand_name is not None:
+                changes["brand_name"] = brand_name
+            if brand_description is not None:
+                changes["brand_description"] = brand_description
+            return {
+                "dry_run": True,
+                "action": "update_brand",
+                "brand_id": brand_id,
+                "would_update": changes,
+                "hints": ["Set dry_run=False to execute this action."],
+            }
         body: dict = {"global_key": global_key, "brand_id": brand_id}
         if brand_name is not None:
             body["brand_name"] = brand_name
@@ -83,9 +108,20 @@ def register(mcp: FastMCP, client: DSClient) -> None:
     async def delete_brands(
         global_key: str,
         brand_ids: list[int],
+        dry_run: bool = False,
     ) -> dict:
         """Delete one or more brands by ID."""
         global_key = validate_str(global_key, "global_key")
+        if dry_run:
+            return {
+                "dry_run": True,
+                "action": "delete_brands",
+                "would_delete": brand_ids,
+                "hints": [
+                    "Set dry_run=False to execute this action.",
+                    "Use list_brands to verify brand IDs before deleting.",
+                ],
+            }
         raw = await client.post(
             "/api/v5_1/brands/delete_brands",
             json_body={"global_key": global_key, "brand_ids": brand_ids},
