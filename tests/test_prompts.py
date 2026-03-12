@@ -58,7 +58,7 @@ class TestWeeklyRankingReport:
     def test_contains_tool_name(self):
         mcp = _setup()
         result = mcp.prompts["weekly-ranking-report"](site_global_key="my-site")
-        assert "get_keyword_performance" in result
+        assert "serp_analytics" in result
 
     def test_contains_site_key(self):
         mcp = _setup()
@@ -127,7 +127,7 @@ class TestCompetitorGap:
     def test_contains_tool_name(self):
         mcp = _setup()
         result = mcp.prompts["competitor-gap"](site_global_key="a", competitor_global_key="b")
-        assert "get_keyword_performance" in result
+        assert "serp_analytics" in result
 
 
 # ── landing-page-audit ───────────────────────────────────────────────

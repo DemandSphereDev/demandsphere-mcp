@@ -16,7 +16,7 @@ logger = logging.getLogger("demandsphere_mcp")
 
 # ── Server instructions ───────────────────────────────────────────────
 # Loaded ONCE per session. Educational context lives here instead of
-# in per-tool docstrings (which multiply across 27 tools).
+# in per-tool docstrings (which multiply across 20 tools).
 
 _INSTRUCTIONS = """\
 DemandSphere search intelligence platform.
@@ -28,7 +28,7 @@ WORKFLOW:
 4. Brand tools → manage tracked brands for GenAI visibility
 
 PARAMETERS:
-- global_key: site's global key string (used by get_keyword_performance, v5.1 brand tools)
+- global_key: site's global key string (used by serp_analytics view='performance', v5.1 brand tools)
 - site_id: site's ID string (used by other v5.0 tools)
 - site_global_key: same as global_key (used by v5.1 genai/LLM tools in URL path)
   All three come from list_sites results.
@@ -38,12 +38,12 @@ PARAMETERS:
 - Dates: always YYYY-MM-DD
 - granularity: daily (default), weekly, monthly
 - order: asc (default) or desc
-- grouped: set True to aggregate by keyword tag/group
-- metric (LLM analytics): visits, page_views, new_visits, bounces, conversions, value
-- llms_list/channels_list: comma-separated filters for LLM analytics
+- grouped: set True to aggregate by keyword tag/group (serp_analytics views: trends, engine_comparison)
+- metric (llm_analytics): visits, page_views, new_visits, bounces, conversions, value
+- llms_list/channels_list: comma-separated filters for llm_analytics views: stats, performance
 
 SORT OPTIONS:
-- Keywords: keyword_name, rank, rank_change, search_volume, projected_mo_traffic, clicks, impressions, average_position, ctr
+- serp_analytics: keyword_name, rank, rank_change, search_volume, projected_mo_traffic, clicks, impressions, average_position, ctr
 - Groups: tag_name, keywords_count, bucket0-bucket8, search_volume, projected_mo_traffic
 - Landing matches: keyword_name, rank, rank_change, search_volume, landing_match
 
@@ -54,8 +54,8 @@ PAGINATION:
 
 TOOL CATEGORIES:
 - Sites: list_sites, list_sites_flat
-- SERP: get_keyword_performance, get_keyword_groups, get_ranking_trends, get_search_engine_comparison, get_local_rankings, get_landing_matches, get_landings_history, get_search_engine_summary
-- GenAI: get_mentions, get_keyword_citations, get_bulk_citations, get_site_citations, get_llm_stats, get_llm_performance_summary, get_channels_performance_summary, get_cross_channel_overview, get_cross_llms_overview, get_llm_filters, get_people_also_ask
+- SERP: serp_analytics (views: performance, trends, engine_comparison, engine_summary), get_keyword_groups, get_local_rankings, get_landing_matches, get_landings_history
+- GenAI: get_mentions, get_keyword_citations, get_bulk_citations, get_site_citations, llm_analytics (views: stats, performance, channels, cross_channel, cross_llms), get_llm_filters, get_people_also_ask
 - Brands: list_brands, create_brand, update_brand, delete_brands
 - Search: search, fetch (ChatGPT Deep Research compatibility)
 """

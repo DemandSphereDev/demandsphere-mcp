@@ -60,7 +60,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                     "search volume",
                 ],
                 "keyword_performance",
-                "Keyword ranking data. Use get_keyword_performance for full results.",
+                "Keyword ranking data. Use serp_analytics(view='performance') for full results.",
             ),
             (
                 [
@@ -80,7 +80,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             (
                 ["traffic", "visits", "llm", "analytics", "channel", "conversion", "bounce"],
                 "llm_traffic",
-                "LLM traffic analytics. Use get_llm_stats or get_cross_llms_overview for full results.",
+                "LLM traffic analytics. Use llm_analytics(view='stats') or llm_analytics(view='cross_llms') for full results.",
             ),
             (
                 ["people also ask", "paa", "question", "faq"],
