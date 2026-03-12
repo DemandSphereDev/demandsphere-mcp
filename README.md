@@ -4,13 +4,13 @@ An MCP (Model Context Protocol) server that connects AI assistants to the Demand
 
 ## What It Does
 
-This server exposes **27 tools** across five domains:
+This server exposes **20 tools** across five domains:
 
 | Domain | Tools | API Version |
 |---|---|---|
 | **Site Discovery** | `list_sites`, `list_sites_flat` | v5.0 |
-| **SERP Analytics** | `get_keyword_performance`, `get_keyword_groups`, `get_ranking_trends`, `get_search_engine_comparison`, `get_local_rankings`, `get_landing_matches`, `get_landings_history`, `get_search_engine_summary` | v5.0 |
-| **GenAI Visibility** | `get_mentions`, `get_keyword_citations`, `get_bulk_citations`, `get_site_citations`, `get_llm_stats`, `get_llm_performance_summary`, `get_channels_performance_summary`, `get_cross_channel_overview`, `get_cross_llms_overview`, `get_llm_filters`, `get_people_also_ask` | v5.1 |
+| **SERP Analytics** | `serp_analytics` (views: performance, trends, engine\_comparison, engine\_summary), `get_keyword_groups`, `get_local_rankings`, `get_landing_matches`, `get_landings_history` | v5.0 |
+| **GenAI Visibility** | `get_mentions`, `get_keyword_citations`, `get_bulk_citations`, `get_site_citations`, `llm_analytics` (views: stats, performance, channels, cross\_channel, cross\_llms), `get_llm_filters`, `get_people_also_ask` | v5.1 |
 | **Brand Management** | `list_brands`, `create_brand`, `update_brand`, `delete_brands` | v5.1 |
 | **ChatGPT Deep Research** | `search`, `fetch` | compat |
 
@@ -197,7 +197,12 @@ demandsphere-mcp/
 │   ├── mcp-config-uv.json                 # MCP client config (uv)
 │   └── mcp-config-pip.json                # MCP client config (pip)
 ├── tests/
-│   └── test_core.py                       # Unit tests
+│   ├── test_core.py                       # Unit tests (validators, shaping, errors)
+│   ├── test_hints.py                      # Hint builder tests
+│   ├── test_brands.py                     # Brand dry_run tests
+│   ├── test_consolidated.py               # serp_analytics + llm_analytics tests
+│   ├── test_prompts.py                    # MCP Prompt tests
+│   └── test_resources.py                  # MCP Resource tests
 └── src/demandsphere_mcp/
     ├── __init__.py
     ├── py.typed                            # PEP 561 type marker
@@ -206,12 +211,14 @@ demandsphere-mcp/
     ├── client.py                           # Async HTTP client + rate limiter
     └── tools/
         ├── __init__.py
-        ├── utils.py                        # Shared error handling decorator
+        ├── utils.py                        # Error handling, validation, hints
         ├── sites.py                        # Site discovery (v5.0)
         ├── keywords_v50.py                 # SERP analytics (v5.0)
         ├── genai_v51.py                    # GenAI visibility (v5.1)
         ├── brands_v51.py                   # Brand management (v5.1)
-        └── chatgpt_compat.py              # ChatGPT Deep Research (search/fetch)
+        ├── chatgpt_compat.py              # ChatGPT Deep Research (search/fetch)
+        ├── prompts.py                     # MCP Prompts (workflow templates)
+        └── resources.py                   # MCP Resources (parameter discovery)
 ```
 
 ## Development
