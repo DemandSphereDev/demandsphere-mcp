@@ -6,6 +6,7 @@ import logging
 import sys
 
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
 
 from .client import DSClient, set_default_client
 from .config import settings
@@ -92,7 +93,7 @@ def create_server() -> FastMCP:
     return mcp
 
 
-def create_asgi_app():
+def create_asgi_app() -> Starlette:
     """Return the Starlette ASGI app for streamable HTTP transport.
 
     Use this when embedding the MCP inside a larger ASGI stack (e.g. the
