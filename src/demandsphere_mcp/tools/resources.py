@@ -6,10 +6,10 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient
+from ..client import get_client
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     # ── Static parameter enumerations ──────────────────────────────────
 
     @mcp.resource(
@@ -145,7 +145,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         description="Available sites with IDs, global keys, names, and URLs.",
     )
     async def sites() -> str:
-        raw = await client.post("/sites/hierarchy/list")
+        raw = await get_client().post("/sites/hierarchy/list")
         site_list = raw.get("hierarchyList", raw)
         return json.dumps(
             {

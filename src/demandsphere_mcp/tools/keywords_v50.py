@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient
+from ..client import get_client
 from .utils import attach_hints, build_hints, clamp_limit, safe_tool, validate_date_range
 
 _SERP_VIEWS = {"performance", "trends", "engine_comparison", "engine_summary"}
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     @mcp.tool()
     @safe_tool
     async def serp_analytics(
@@ -50,7 +50,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
 
         if view == "performance":
             limit = clamp_limit(limit)
-            raw = await client.post(
+            raw = await get_client().post(
                 "/keywords/keywords_performance_detail/list",
                 params={
                     "global_key": global_key,
@@ -64,7 +64,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                     "page_num": page_num,
                 },
             )
-            result = client.shape_tabular(raw)
+            result = get_client().shape_tabular(raw)
             hints = build_hints(
                 total_count=result.get("total_count"),
                 returned_count=result.get("returned_count"),
@@ -93,8 +93,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             }
             if grouped:
                 params["grouped"] = "true"
-            raw = await client.post("/keywords/ranking_trends/list", params=params)
-            result = client.shape_tabular(raw)
+            raw = await get_client().post("/keywords/ranking_trends/list", params=params)
+            result = get_client().shape_tabular(raw)
             extra = []
             if grouped:
                 extra.append("Set grouped=False to see individual keyword trends.")
@@ -125,8 +125,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             }
             if grouped:
                 params["grouped"] = "true"
-            raw = await client.post("/keywords/search_engines/list", params=params)
-            result = client.shape_tabular(raw)
+            raw = await get_client().post("/keywords/search_engines/list", params=params)
+            result = get_client().shape_tabular(raw)
             hints = build_hints(
                 total_count=result.get("total_count"),
                 returned_count=result.get("returned_count"),
@@ -141,7 +141,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             return attach_hints(result, hints)
 
         # engine_summary
-        raw = await client.post(
+        raw = await get_client().post(
             "/search_engines/summary/list",
             params={
                 "site_id": site_id,
@@ -151,7 +151,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "granularity": granularity,
             },
         )
-        result = client.shape_tabular(raw)
+        result = get_client().shape_tabular(raw)
         hints = build_hints(
             total_count=result.get("total_count"),
             returned_count=result.get("returned_count"),
@@ -179,7 +179,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Keyword group/tag performance with ranking bucket distribution (bucket0-bucket8), volume, traffic, CTR."""
         limit = clamp_limit(limit)
         validate_date_range(from_date, to_date)
-        raw = await client.post(
+        raw = await get_client().post(
             "/keywords/keyword_groups_detail/list",
             params={
                 "site_id": site_id,
@@ -193,7 +193,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        result = client.shape_tabular(raw)
+        result = get_client().shape_tabular(raw)
         hints = build_hints(
             total_count=result.get("total_count"),
             returned_count=result.get("returned_count"),
@@ -222,7 +222,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Local search rankings with per-location rank history."""
         limit = clamp_limit(limit)
         validate_date_range(from_date, to_date)
-        raw = await client.post(
+        raw = await get_client().post(
             "/keywords/local_rankings/list",
             params={
                 "site_id": site_id,
@@ -236,7 +236,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        result = client.shape_tabular(raw)
+        result = get_client().shape_tabular(raw)
         hints = build_hints(
             total_count=result.get("total_count"),
             returned_count=result.get("returned_count"),
@@ -265,7 +265,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Check if ranking pages match preferred landing pages. Returns match/mismatch/none status."""
         limit = clamp_limit(limit)
         validate_date_range(from_date, to_date)
-        raw = await client.post(
+        raw = await get_client().post(
             "/keywords/landing_matches/list",
             params={
                 "site_id": site_id,
@@ -279,7 +279,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "page_num": page_num,
             },
         )
-        result = client.shape_tabular(raw)
+        result = get_client().shape_tabular(raw)
         hints = build_hints(
             total_count=result.get("total_count"),
             returned_count=result.get("returned_count"),
@@ -303,7 +303,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
     ) -> dict:
         """Landing page history for a specific keyword. Shows which page ranked on each date."""
         validate_date_range(from_date, to_date)
-        raw = await client.post(
+        raw = await get_client().post(
             "/pages/landings_history/list",
             params={
                 "site_id": site_id,
@@ -313,7 +313,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "to": to_date,
             },
         )
-        result = client.shape_tabular(raw)
+        result = get_client().shape_tabular(raw)
         hints = build_hints(
             total_count=result.get("total_count"),
             returned_count=result.get("returned_count"),

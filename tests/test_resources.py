@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from demandsphere_mcp.client import set_default_client
 from demandsphere_mcp.tools.resources import register
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -50,7 +51,8 @@ class FakeMCP:
 def _setup() -> tuple[FakeMCP, FakeClient]:
     mcp = FakeMCP()
     client = FakeClient()
-    register(mcp, client)
+    set_default_client(client)  # type: ignore[arg-type]
+    register(mcp)
     return mcp, client
 
 

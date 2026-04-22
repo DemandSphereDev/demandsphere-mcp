@@ -7,7 +7,6 @@ from collections import OrderedDict
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient
 from .utils import safe_tool
 
 # LRU-bounded cache. Prevents memory leak in long-running HTTP deployments.
@@ -38,7 +37,7 @@ class _LRUCache:
 _record_cache = _LRUCache()
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     @mcp.tool()
     @safe_tool
     async def search(query: str) -> dict:
