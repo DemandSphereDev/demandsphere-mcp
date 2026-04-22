@@ -35,8 +35,7 @@ def _load_file_config() -> dict:
         mode = _CONFIG_FILE.stat().st_mode
         if mode & (stat.S_IRGRP | stat.S_IROTH):
             logger.warning(
-                "Config file %s is readable by group/others. "
-                "Consider running: chmod 600 %s",
+                "Config file %s is readable by group/others. Consider running: chmod 600 %s",
                 _CONFIG_FILE,
                 _CONFIG_FILE,
             )

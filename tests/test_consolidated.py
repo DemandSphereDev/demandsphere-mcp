@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from demandsphere_mcp.tools.keywords_v50 import register as register_keywords
 from demandsphere_mcp.tools.genai_v51 import register as register_genai
-
+from demandsphere_mcp.tools.keywords_v50 import register as register_keywords
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -17,11 +16,11 @@ class FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
 
-    async def get(self, path: str, **kwargs) -> dict:  # noqa: ANN003
+    async def get(self, path: str, **kwargs) -> dict:
         self.calls.append(("GET", {"path": path, **kwargs}))
         return {"data": {"records": []}}
 
-    async def post(self, path: str, **kwargs) -> dict:  # noqa: ANN003
+    async def post(self, path: str, **kwargs) -> dict:
         self.calls.append(("POST", {"path": path, **kwargs}))
         return {"results": [], "totalResults": 0}
 
@@ -48,8 +47,8 @@ class FakeMCP:
     def __init__(self) -> None:
         self.tools: dict[str, object] = {}
 
-    def tool(self):  # noqa: ANN201
-        def decorator(fn):  # noqa: ANN001, ANN202
+    def tool(self):
+        def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn
 

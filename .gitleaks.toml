@@ -1,0 +1,23 @@
+title = "demandsphere-mcp gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder keys in documentation, examples, and tests"
+paths = [
+    '''config\.example\.json''',
+    '''README\.md''',
+    '''CONTRIBUTING\.md''',
+    '''SECURITY\.md''',
+    '''CLAUDE\.md''',
+    '''examples/.*''',
+    '''tests/.*''',
+    '''\.ai/.*''',
+    '''\.secrets\.baseline''',
+]
+regexes = [
+    '''YOUR_DEMANDSPHERE_API_KEY''',
+    '''your-api-key''',
+    '''YOUR_API_KEY_HERE''',
+]

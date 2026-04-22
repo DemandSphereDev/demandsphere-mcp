@@ -9,7 +9,6 @@ from .utils import safe_tool
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     @mcp.tool()
     @safe_tool
     async def list_sites() -> dict:

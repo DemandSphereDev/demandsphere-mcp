@@ -52,3 +52,34 @@ packages = ["src/demandsphere_mcp"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Test files: B (flake8-bugbear) and SIM (simplify) often flag patterns
+# that are deliberate in test scaffolding. E501 applies to long docstrings
+# that describe test intent and are not runtime code.
+"tests/*" = ["B", "SIM", "E501"]
+# Tool modules hold LLM-facing description strings and docstrings that
+# are intentionally long for model readability — line length is a
+# Python-ergonomics rule, not a string-content one.
+"src/demandsphere_mcp/tools/*.py" = ["E501"]
+# server.py holds the MCP server instructions block (_INSTRUCTIONS) —
+# an LLM-facing multi-line string with intentionally long lines.
+"src/demandsphere_mcp/server.py" = ["E501"]
+# client.py::_sync_close is the approved atexit/interpreter-shutdown
+# cleanup pattern documented in CLAUDE.md Forbidden patterns. SIM105
+# (use contextlib.suppress) and RUF006 (store create_task handle)
+# would alter that pattern's semantics — opt out locally.
+# B904: raise-without-from-inside-except — retrofitting exception chaining
+# touches runtime semantics; deferred to a follow-up pass. Scoped per-file
+# (client.py and tools/utils.py) so future src/ files are subject to the rule.
+"src/demandsphere_mcp/client.py" = ["SIM105", "RUF006", "B904"]
+"src/demandsphere_mcp/tools/utils.py" = ["B904"]

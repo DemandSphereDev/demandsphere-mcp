@@ -27,8 +27,8 @@ from typing import Any
 
 import httpx
 
-from .config import settings
 from . import __version__
+from .config import settings
 
 logger = logging.getLogger("demandsphere_mcp.client")
 
@@ -48,7 +48,7 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 def _retry_delay(attempt: int) -> float:
     """Exponential backoff with jitter."""
-    return _RETRY_BACKOFF * (2 ** attempt) + random.uniform(0, _RETRY_JITTER)
+    return _RETRY_BACKOFF * (2**attempt) + random.uniform(0, _RETRY_JITTER)
 
 
 def validate_path_param(value: str, name: str = "parameter") -> str:
@@ -152,7 +152,7 @@ class DSClient:
         # ensures the connection pool is drained on graceful shutdown.
         atexit.register(self._sync_close)
 
-    async def __aenter__(self) -> "DSClient":
+    async def __aenter__(self) -> DSClient:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -316,10 +316,7 @@ def _flatten_row(row: dict) -> dict:
         if isinstance(val, dict) and "value" in val:
             out[key] = val["value"]
         elif isinstance(val, list):
-            out[key] = [
-                item.get("value", item) if isinstance(item, dict) else item
-                for item in val
-            ]
+            out[key] = [item.get("value", item) if isinstance(item, dict) else item for item in val]
         else:
             out[key] = val
     return out

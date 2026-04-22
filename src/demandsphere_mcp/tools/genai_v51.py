@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient, validate_path_param
-from .utils import safe_tool, clamp_limit, validate_date, validate_date_range, attach_hints
+from .utils import attach_hints, clamp_limit, safe_tool, validate_date, validate_date_range
 
 _LLM_VIEWS = {"stats", "performance", "channels", "cross_channel", "cross_llms"}
 
@@ -19,7 +19,6 @@ _LLM_ENDPOINTS = {
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     # ── Mentions & Citations ──────────────────────────────────────────
 
     @mcp.tool()
