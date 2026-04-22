@@ -19,4 +19,5 @@ paths = [
 regexes = [
     '''YOUR_DEMANDSPHERE_API_KEY''',
     '''your-api-key''',
+    '''YOUR_API_KEY_HERE''',
 ]
