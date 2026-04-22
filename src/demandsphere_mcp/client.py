@@ -66,13 +66,14 @@ def get_client() -> DSClient:
     try:
         return _current_client.get()
     except LookupError:
-        if _default_client is not None:
-            return _default_client
-        raise RuntimeError(
-            "No DSClient in context. In hosted mode, ensure auth middleware "
-            "sets the _current_client ContextVar. In stdio mode, call "
-            "set_default_client() during bootstrap."
-        )
+        pass
+    if _default_client is not None:
+        return _default_client
+    raise RuntimeError(
+        "No DSClient in context. In hosted mode, ensure auth middleware "
+        "sets the _current_client ContextVar. In stdio mode, call "
+        "set_default_client() during bootstrap."
+    )
 
 
 # Characters allowed in URL path segments (site keys, keyword IDs, etc.)
