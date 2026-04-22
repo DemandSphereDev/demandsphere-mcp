@@ -50,7 +50,7 @@ uv run demandsphere-mcp                 # run server (stdio)
 ## Forbidden patterns (rejected in review)
 
 - Never log API keys, full URLs with query strings, or request bodies that contain credentials. Precedent: commit `29f2424` ("Suppress httpx request logging — leaks API keys").
-- Never use bare `except:` or `except Exception: pass` — surface the error or narrow the except clause.
+- Never use bare `except:` or `except Exception: pass` — surface the error or narrow the except clause. The one approved exception is the atexit/interpreter-shutdown cleanup pattern in `client.py::_sync_close`, where suppression is documented inline; if you add another such site, document why.
 - Never commit `config.json`, `.env`, any `*.pem`/`*.key`, or anything under `.ai/`.
 - Never edit `CHANGELOG.md` in a feature PR — the changelog is curated at release time.
 - Never inline a live API key in tests, docstrings, examples, or fixtures.
@@ -66,7 +66,7 @@ pre-commit run --all-files   # if pre-commit is installed
 
 ## Secret handling
 
-The DemandSphere API key is loaded from, in order: `DEMANDSPHERE_API_KEY` env var → `~/.config/demandsphere/config.json` → `.env` in the working directory. See `src/demandsphere_mcp/config.py`. The key travels in the DemandSphere API's URL query string — this is why server-side `httpx` request logging is suppressed. Do not re-enable it.
+The DemandSphere API key is loaded from, in order of precedence (highest wins): `DEMANDSPHERE_API_KEY` env var → `.env` in the working directory → `~/.config/demandsphere/config.json`. See `src/demandsphere_mcp/config.py`. The key travels in the DemandSphere API's URL query string — this is why server-side `httpx` request logging is suppressed. Do not re-enable it.
 
 ## Working artifacts
 
