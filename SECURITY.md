@@ -25,7 +25,7 @@ We will acknowledge your report within **3 business days**. For confirmed issues
 
 In scope:
 
-- Code in this repository (`src/`, `tests/`, `Dockerfile`, workflows)
+- Code in this repository (`src/`, `tests/`, `Dockerfile`, `.github/workflows/`)
 - Direct Python dependencies declared in `pyproject.toml`
 
 Out of scope:
@@ -36,5 +36,5 @@ Out of scope:
 
 ## Known considerations
 
-- The DemandSphere API uses query-parameter authentication. The API key may appear in URL query strings sent to DemandSphere's backend. This server suppresses `httpx` request logging (commit `29f2424`) to prevent local log leaks. If you deploy the `streamable-http` transport behind a reverse proxy, configure it to strip or redact query strings from access logs.
+- The DemandSphere API uses query-parameter authentication. The API key may appear in URL query strings sent to DemandSphere's backend. This server suppresses `httpx` request logging (see [commit 29f2424](https://github.com/DemandSphereDev/demandsphere-mcp/commit/29f2424)) to prevent local log leaks. If you deploy the `streamable-http` transport behind a reverse proxy, configure it to strip or redact query strings from access logs.
 - The AI model using this MCP server never sees the API key — the server holds the key and injects it into outbound requests.
