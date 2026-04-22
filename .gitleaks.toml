@@ -14,6 +14,7 @@ paths = [
     '''examples/.*''',
     '''tests/.*''',
     '''\.ai/.*''',
+    '''\.secrets\.baseline''',
 ]
 regexes = [
     '''YOUR_DEMANDSPHERE_API_KEY''',
