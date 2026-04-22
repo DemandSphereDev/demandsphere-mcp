@@ -513,3 +513,19 @@ class TestDSApiError:
         err = DSApiError(500, "Server error")
         assert "500" in str(err)
         assert "Server error" in str(err)
+
+
+class TestCreateAsgiApp:
+    def test_returns_asgi_app_without_touching_default_client(self):
+        from starlette.applications import Starlette
+
+        from demandsphere_mcp import client as _client_mod
+        from demandsphere_mcp.server import create_asgi_app
+
+        _client_mod._default_client = None
+        app = create_asgi_app()
+
+        assert isinstance(app, Starlette)
+        # Critical contract: embedding apps install their own middleware, so
+        # create_asgi_app() must NOT install a default client behind their back.
+        assert _client_mod._default_client is None

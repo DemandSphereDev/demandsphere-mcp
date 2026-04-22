@@ -92,6 +92,19 @@ def create_server() -> FastMCP:
     return mcp
 
 
+def create_asgi_app():
+    """Return the Starlette ASGI app for streamable HTTP transport.
+
+    Use this when embedding the MCP inside a larger ASGI stack (e.g. the
+    hosted gateway). The consuming app is responsible for installing auth
+    middleware that populates the ``_current_client`` ContextVar per request.
+
+    Intentionally does NOT call ``set_default_client()`` — relying on a
+    default in hosted mode would mask a missing middleware wiring.
+    """
+    return create_server().streamable_http_app()
+
+
 def main() -> None:
     """CLI entry point."""
     logging.basicConfig(
