@@ -6,10 +6,8 @@ from datetime import date, timedelta
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient
 
-
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     @mcp.prompt(
         name="weekly-ranking-report",
         description="Analyze keyword rankings for the last 7 days. Highlights drops, gains, and new top-10 entries.",

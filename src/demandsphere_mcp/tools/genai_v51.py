@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient, validate_path_param
+from ..client import get_client, validate_path_param
 from .utils import attach_hints, clamp_limit, safe_tool, validate_date, validate_date_range
 
 _LLM_VIEWS = {"stats", "performance", "channels", "cross_channel", "cross_llms"}
@@ -18,7 +18,7 @@ _LLM_ENDPOINTS = {
 }
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     # ── Mentions & Citations ──────────────────────────────────────────
 
     @mcp.tool()
@@ -41,8 +41,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             params["keyword_tags[]"] = keyword_tags
         if keyword_names:
             params["keyword_names[]"] = keyword_names
-        raw = await client.get(f"/v5_1/accounts/sites/{key}/mentions", params=params)
-        result = client.shape_v51(raw)
+        raw = await get_client().get(f"/v5_1/accounts/sites/{key}/mentions", params=params)
+        result = get_client().shape_v51(raw)
         return attach_hints(
             result,
             [
@@ -63,7 +63,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Citation URLs for a single keyword on an AI platform."""
         key = validate_path_param(site_global_key, "site_global_key")
         validate_date(target_date, "target_date")
-        raw = await client.post(
+        raw = await get_client().post(
             f"/v5_1/accounts/sites/{key}/queries/citations",
             params={
                 "search_engine": search_engine,
@@ -71,7 +71,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 "query_keyword_name": keyword_name,
             },
         )
-        result = client.shape_v51(raw)
+        result = get_client().shape_v51(raw)
         return attach_hints(
             result,
             [
@@ -91,7 +91,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         """Citation URLs for multiple keywords in one call (max 50). Returns keyword→URLs mapping."""
         key = validate_path_param(site_global_key, "site_global_key")
         validate_date(target_date, "target_date")
-        raw = await client.post(
+        raw = await get_client().post(
             f"/v5_1/accounts/sites/{key}/queries/bulk_citations",
             params={
                 "search_engine": search_engine,
@@ -99,7 +99,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             },
             json_body={"query_keyword_names": keyword_names[:50]},
         )
-        result = client.shape_v51(raw)
+        result = get_client().shape_v51(raw)
         hints = [
             "Use get_mentions for mention counts and context sentences alongside citation URLs."
         ]
@@ -132,8 +132,8 @@ def register(mcp: FastMCP, client: DSClient) -> None:
         }
         if keyword_tags:
             params["keyword_tags[]"] = keyword_tags
-        raw = await client.get(f"/v5_1/accounts/sites/{key}/citations", params=params)
-        result = client.shape_v51(raw)
+        raw = await get_client().get(f"/v5_1/accounts/sites/{key}/citations", params=params)
+        result = get_client().shape_v51(raw)
         extra = [
             "Use get_keyword_citations for detailed citations on a single keyword.",
             "Use get_bulk_citations to fetch citations for up to 50 keywords at once.",
@@ -187,11 +187,11 @@ def register(mcp: FastMCP, client: DSClient) -> None:
                 params["channels_list"] = channels_list
 
         endpoint = _LLM_ENDPOINTS[view]
-        raw = await client.get(
+        raw = await get_client().get(
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/{endpoint}",
             params=params,
         )
-        result = client.shape_v51(raw)
+        result = get_client().shape_v51(raw)
 
         # View-specific hints
         if view == "stats":
@@ -228,10 +228,10 @@ def register(mcp: FastMCP, client: DSClient) -> None:
     async def get_llm_filters(site_global_key: str) -> dict:
         """Available filter values for LLM analytics: channels, LLM names, metrics."""
         key = validate_path_param(site_global_key, "site_global_key")
-        raw = await client.get(
+        raw = await get_client().get(
             f"/v5_1/accounts/sites/{key}/analytics/site_visits/llms/filters",
         )
-        result = client.shape_v51(raw)
+        result = get_client().shape_v51(raw)
         return attach_hints(
             result,
             [
@@ -276,11 +276,11 @@ def register(mcp: FastMCP, client: DSClient) -> None:
             includes.append("adword_stats")
         if includes:
             params["includes[]"] = includes
-        raw = await client.get(
+        raw = await get_client().get(
             f"/v5_1/accounts/sites/{key}/people_also_asks",
             params=params,
         )
-        result = client.shape_v51(raw)
+        result = get_client().shape_v51(raw)
         extra: list[str] = []
         records = result.get("records", []) if isinstance(result, dict) else []
         if isinstance(records, list) and len(records) >= page_limit:

@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from ..client import DSClient
+from ..client import get_client
 from .utils import safe_tool
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:
+def register(mcp: FastMCP) -> None:
     @mcp.tool()
     @safe_tool
     async def list_sites() -> dict:
         """List all sites with org/account hierarchy. Returns site IDs needed by other tools."""
-        raw = await client.post("/sites/properties/list")
+        raw = await get_client().post("/sites/properties/list")
         data = raw.get("propertyList", raw)
         hints = [
             "Each site has a global_key (for serp_analytics view='performance', v5.1 tools) and an id/site_id (for other v5.0 tools).",
@@ -28,7 +28,7 @@ def register(mcp: FastMCP, client: DSClient) -> None:
     @safe_tool
     async def list_sites_flat() -> dict:
         """List all sites as a flat array. Returns id, name, url, keyword count."""
-        raw = await client.post("/sites/hierarchy/list")
+        raw = await get_client().post("/sites/hierarchy/list")
         data = raw.get("hierarchyList", raw)
         hints = [
             "Use the id field as site_id for v5.0 keyword tools. Use global_key (from list_sites) for serp_analytics(view='performance') and v5.1 tools.",

@@ -6,8 +6,9 @@ import logging
 import sys
 
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
 
-from .client import DSClient
+from .client import DSClient, set_default_client
 from .config import settings
 from .tools import brands_v51, chatgpt_compat, genai_v51, keywords_v50, prompts, resources, sites
 
@@ -60,9 +61,6 @@ TOOL CATEGORIES:
 - Search: search, fetch (ChatGPT Deep Research compatibility)
 """
 
-# Lazy singleton — not created at import time (#7)
-_server: FastMCP | None = None
-
 
 def _check_config() -> None:
     if settings.transport == "stdio" and not settings.api_key:
@@ -78,28 +76,34 @@ def create_server() -> FastMCP:
     """Create and configure the MCP server with all tools registered.
 
     Safe to call from tests and external code — does not call sys.exit.
+    Callers are responsible for installing a default DSClient via
+    ``set_default_client()`` (stdio / single-tenant) or arranging per-request
+    ContextVar population (hosted mode) before tools are invoked.
     """
     mcp = FastMCP("demandsphere", instructions=_INSTRUCTIONS)
-    client = DSClient()
 
-    sites.register(mcp, client)
-    keywords_v50.register(mcp, client)
-    genai_v51.register(mcp, client)
-    brands_v51.register(mcp, client)
-    chatgpt_compat.register(mcp, client)
-    prompts.register(mcp, client)
-    resources.register(mcp, client)
+    sites.register(mcp)
+    keywords_v50.register(mcp)
+    genai_v51.register(mcp)
+    brands_v51.register(mcp)
+    chatgpt_compat.register(mcp)
+    prompts.register(mcp)
+    resources.register(mcp)
 
     return mcp
 
 
-def _get_server() -> FastMCP:
-    """Lazy singleton accessor."""
-    global _server
-    if _server is None:
-        _check_config()
-        _server = create_server()
-    return _server
+def create_asgi_app() -> Starlette:
+    """Return the Starlette ASGI app for streamable HTTP transport.
+
+    Use this when embedding the MCP inside a larger ASGI stack (e.g. the
+    hosted gateway). The consuming app is responsible for installing auth
+    middleware that populates the ``_current_client`` ContextVar per request.
+
+    Intentionally does NOT call ``set_default_client()`` — relying on a
+    default in hosted mode would mask a missing middleware wiring.
+    """
+    return create_server().streamable_http_app()
 
 
 def main() -> None:
@@ -110,11 +114,21 @@ def main() -> None:
         stream=sys.stderr,  # Never stdout — would corrupt stdio transport
     )
 
-    server = _get_server()
+    _check_config()
+    set_default_client(DSClient())
+    server = create_server()
 
     if settings.transport == "streamable-http":
-        logger.info("Starting DemandSphere MCP (HTTP) on %s:%d", settings.host, settings.port)
-        server.run(transport="streamable-http", host=settings.host, port=settings.port)
+        logger.info(
+            "Starting DemandSphere MCP (HTTP) on %s:%d",
+            settings.host,
+            settings.port,
+        )
+        server.run(
+            transport="streamable-http",
+            host=settings.host,
+            port=settings.port,
+        )
     else:
         server.run(transport="stdio")
 

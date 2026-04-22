@@ -7,10 +7,6 @@ from demandsphere_mcp.tools.prompts import register
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-class FakeClient:
-    pass
-
-
 class FakeMCP:
     def __init__(self) -> None:
         self.prompts: dict[str, object] = {}
@@ -33,8 +29,7 @@ class FakeMCP:
 
 def _setup() -> FakeMCP:
     mcp = FakeMCP()
-    client = FakeClient()
-    register(mcp, client)
+    register(mcp)
     return mcp
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from demandsphere_mcp.client import set_default_client
 from demandsphere_mcp.tools.genai_v51 import register as register_genai
 from demandsphere_mcp.tools.keywords_v50 import register as register_keywords
 
@@ -58,14 +59,16 @@ class FakeMCP:
 def _setup_keywords() -> tuple[FakeMCP, FakeClient]:
     mcp = FakeMCP()
     client = FakeClient()
-    register_keywords(mcp, client)
+    set_default_client(client)  # type: ignore[arg-type]
+    register_keywords(mcp)
     return mcp, client
 
 
 def _setup_genai() -> tuple[FakeMCP, FakeClient]:
     mcp = FakeMCP()
     client = FakeClient()
-    register_genai(mcp, client)
+    set_default_client(client)  # type: ignore[arg-type]
+    register_genai(mcp)
     return mcp, client
 
 

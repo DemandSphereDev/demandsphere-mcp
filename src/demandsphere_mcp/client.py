@@ -23,6 +23,7 @@ import logging
 import random
 import re
 import time
+from contextvars import ContextVar
 from typing import Any
 
 import httpx
@@ -35,6 +36,45 @@ logger = logging.getLogger("demandsphere_mcp.client")
 # Suppress httpx/httpcore request logging — it logs full URLs including api_key query params.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+# Request-scoped client override. Populated by external ASGI middleware in
+# hosted mode; unset in stdio / single-tenant mode. Tools read it via
+# ``get_client()`` rather than closing over a module-level handle.
+_current_client: ContextVar[DSClient] = ContextVar("_current_client")
+
+# Process-wide fallback used when no ContextVar is set. Stdio bootstrap and
+# single-tenant streamable-http bootstrap populate this; hosted mode leaves
+# it None so that a missing ContextVar surfaces as a clear error.
+_default_client: DSClient | None = None
+
+
+def set_default_client(client: DSClient) -> None:
+    """Install the process-wide fallback DSClient (stdio / single-tenant)."""
+    global _default_client
+    _default_client = client
+
+
+def get_client() -> DSClient:
+    """Return the active DSClient.
+
+    Priority:
+      1. ``_current_client`` ContextVar (set per request in hosted mode)
+      2. ``_default_client`` module global (set at bootstrap)
+
+    Raises ``RuntimeError`` if neither is set — avoids silent misconfiguration.
+    """
+    try:
+        return _current_client.get()
+    except LookupError:
+        pass
+    if _default_client is not None:
+        return _default_client
+    raise RuntimeError(
+        "No DSClient in context. In hosted mode, ensure auth middleware "
+        "sets the _current_client ContextVar. In stdio mode, call "
+        "set_default_client() during bootstrap."
+    )
+
 
 # Characters allowed in URL path segments (site keys, keyword IDs, etc.)
 _SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
@@ -130,27 +170,35 @@ class DSClient:
         self,
         api_key: str | None = None,
         base_url: str | None = None,
+        http: httpx.AsyncClient | None = None,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self._api_key = api_key or settings.api_key
         self._base_url = (base_url or settings.base_url).rstrip("/")
-        self._limiter = RateLimiter(settings.max_requests_per_minute)
-        self._http = httpx.AsyncClient(
-            timeout=httpx.Timeout(
-                connect=5.0,
-                read=settings.request_timeout,
-                write=10.0,
-                pool=5.0,
-            ),
-            headers={
-                "Accept": "application/json",
-                "User-Agent": f"demandsphere-mcp/{__version__}",
-            },
-        )
+
+        self._limiter = limiter or RateLimiter(settings.max_requests_per_minute)
+
+        self._owns_http = http is None
+        if http is None:
+            http = httpx.AsyncClient(
+                timeout=httpx.Timeout(
+                    connect=5.0,
+                    read=settings.request_timeout,
+                    write=10.0,
+                    pool=5.0,
+                ),
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": f"demandsphere-mcp/{__version__}",
+                },
+            )
+        self._http = http
 
         # Best-effort cleanup if the client is never explicitly closed.
-        # In stdio mode the process exits anyway; in HTTP mode this
-        # ensures the connection pool is drained on graceful shutdown.
-        atexit.register(self._sync_close)
+        # Only register when we own the pool — otherwise the embedding
+        # app is responsible for its own httpx lifecycle.
+        if self._owns_http:
+            atexit.register(self._sync_close)
 
     async def __aenter__(self) -> DSClient:
         return self
@@ -159,8 +207,10 @@ class DSClient:
         await self.close()
 
     async def close(self) -> None:
-        atexit.unregister(self._sync_close)
-        await self._http.aclose()
+        if self._owns_http:
+            atexit.unregister(self._sync_close)
+            await self._http.aclose()
+        # Injected pool: embedding app owns the lifecycle, don't close it.
 
     def _sync_close(self) -> None:
         """Synchronous close for atexit — best-effort connection pool cleanup."""
