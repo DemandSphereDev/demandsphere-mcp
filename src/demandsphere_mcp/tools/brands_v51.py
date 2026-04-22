@@ -9,7 +9,6 @@ from .utils import attach_hints, safe_tool, validate_str
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     @mcp.tool()
     @safe_tool
     async def list_brands(global_key: str) -> dict:

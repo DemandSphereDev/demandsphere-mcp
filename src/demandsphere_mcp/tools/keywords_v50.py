@@ -17,7 +17,6 @@ _SERP_VIEWS = {"performance", "trends", "engine_comparison", "engine_summary"}
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     @mcp.tool()
     @safe_tool
     async def serp_analytics(

@@ -39,7 +39,6 @@ _record_cache = _LRUCache()
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     @mcp.tool()
     @safe_tool
     async def search(query: str) -> dict:

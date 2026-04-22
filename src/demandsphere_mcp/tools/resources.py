@@ -10,7 +10,6 @@ from ..client import DSClient
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     # ── Static parameter enumerations ──────────────────────────────────
 
     @mcp.resource(

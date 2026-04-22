@@ -19,7 +19,6 @@ _LLM_ENDPOINTS = {
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:
-
     # ── Mentions & Citations ──────────────────────────────────────────
 
     @mcp.tool()
