@@ -11,7 +11,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient
-from .utils import safe_tool, clamp_limit, validate_date_range, build_hints, attach_hints
+from .utils import attach_hints, build_hints, clamp_limit, safe_tool, validate_date_range
 
 _SERP_VIEWS = {"performance", "trends", "engine_comparison", "engine_summary"}
 

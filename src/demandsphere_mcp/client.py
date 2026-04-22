@@ -27,8 +27,8 @@ from typing import Any
 
 import httpx
 
-from .config import settings
 from . import __version__
+from .config import settings
 
 logger = logging.getLogger("demandsphere_mcp.client")
 
@@ -152,7 +152,7 @@ class DSClient:
         # ensures the connection pool is drained on graceful shutdown.
         atexit.register(self._sync_close)
 
-    async def __aenter__(self) -> "DSClient":
+    async def __aenter__(self) -> DSClient:
         return self
 
     async def __aexit__(self, *exc: object) -> None:

@@ -6,7 +6,6 @@ import pytest
 
 from demandsphere_mcp.tools.brands_v51 import register
 
-
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
@@ -17,11 +16,11 @@ class FakeClient:
         self._response = response or {"status": "ok", "data": {}}
         self.calls: list[tuple[str, dict]] = []
 
-    async def get(self, path: str, **kwargs) -> dict:  # noqa: ANN003
+    async def get(self, path: str, **kwargs) -> dict:
         self.calls.append(("GET", {"path": path, **kwargs}))
         return self._response
 
-    async def post(self, path: str, **kwargs) -> dict:  # noqa: ANN003
+    async def post(self, path: str, **kwargs) -> dict:
         self.calls.append(("POST", {"path": path, **kwargs}))
         return self._response
 
@@ -39,8 +38,8 @@ class FakeMCP:
     def __init__(self) -> None:
         self.tools: dict[str, object] = {}
 
-    def tool(self):  # noqa: ANN201
-        def decorator(fn):  # noqa: ANN001, ANN202
+    def tool(self):
+        def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn
 
@@ -107,7 +106,7 @@ class TestUpdateBrandDryRun:
 
     @pytest.mark.asyncio
     async def test_dry_run_shows_all_changes(self):
-        mcp, client = _setup()
+        mcp, _client = _setup()
         result = await mcp.tools["update_brand"](
             global_key="site1",
             brand_id=42,
@@ -152,7 +151,7 @@ class TestDeleteBrandsDryRun:
 
     @pytest.mark.asyncio
     async def test_dry_run_hints_include_verify(self):
-        mcp, client = _setup()
+        mcp, _client = _setup()
         result = await mcp.tools["delete_brands"](
             global_key="site1",
             brand_ids=[1],

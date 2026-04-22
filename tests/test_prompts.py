@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from demandsphere_mcp.tools.prompts import register
 
-
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
@@ -16,17 +15,17 @@ class FakeMCP:
     def __init__(self) -> None:
         self.prompts: dict[str, object] = {}
 
-    def prompt(self, **kwargs):  # noqa: ANN003, ANN201
+    def prompt(self, **kwargs):
         name = kwargs.get("name")
 
-        def decorator(fn):  # noqa: ANN001, ANN202
+        def decorator(fn):
             self.prompts[name or fn.__name__] = fn
             return fn
 
         return decorator
 
-    def tool(self):  # noqa: ANN201
-        def decorator(fn):  # noqa: ANN001, ANN202
+    def tool(self):
+        def decorator(fn):
             return fn
 
         return decorator

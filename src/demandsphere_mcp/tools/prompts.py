@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from ..client import DSClient
 
 
-def register(mcp: FastMCP, client: DSClient) -> None:  # noqa: ARG001
+def register(mcp: FastMCP, client: DSClient) -> None:
 
     @mcp.prompt(
         name="weekly-ranking-report",

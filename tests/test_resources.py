@@ -8,7 +8,6 @@ import pytest
 
 from demandsphere_mcp.tools.resources import register
 
-
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
@@ -18,7 +17,7 @@ class FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
 
-    async def post(self, path: str, **kwargs) -> dict:  # noqa: ANN003
+    async def post(self, path: str, **kwargs) -> dict:
         self.calls.append(("POST", {"path": path, **kwargs}))
         return {
             "hierarchyList": [
@@ -34,15 +33,15 @@ class FakeMCP:
     def __init__(self) -> None:
         self.resources: dict[str, object] = {}
 
-    def resource(self, uri: str, **kwargs):  # noqa: ANN003, ANN201
-        def decorator(fn):  # noqa: ANN001, ANN202
+    def resource(self, uri: str, **kwargs):
+        def decorator(fn):
             self.resources[uri] = fn
             return fn
 
         return decorator
 
-    def tool(self):  # noqa: ANN201
-        def decorator(fn):  # noqa: ANN001, ANN202
+    def tool(self):
+        def decorator(fn):
             return fn
 
         return decorator

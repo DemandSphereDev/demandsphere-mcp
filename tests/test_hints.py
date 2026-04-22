@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from demandsphere_mcp.tools.utils import build_hints, attach_hints
-
+from demandsphere_mcp.tools.utils import attach_hints, build_hints
 
 # ── build_hints tests ─────────────────────────────────────────────
 

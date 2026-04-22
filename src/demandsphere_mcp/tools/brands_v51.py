@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from ..client import DSClient
-from .utils import safe_tool, validate_str, attach_hints
+from .utils import attach_hints, safe_tool, validate_str
 
 
 def register(mcp: FastMCP, client: DSClient) -> None:

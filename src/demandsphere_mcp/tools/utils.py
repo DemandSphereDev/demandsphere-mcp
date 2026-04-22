@@ -18,8 +18,9 @@ from __future__ import annotations
 import functools
 import logging
 import re
+from collections.abc import Callable, Coroutine
 from datetime import date
-from typing import Any, Callable, Coroutine
+from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
