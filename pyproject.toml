@@ -60,9 +60,7 @@ addopts = "-ra --strict-markers"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
-# B904: raise ... from err — real code-quality smell, but retrofitting it
-# touches runtime exception semantics; tracked as a follow-up after Phase 1.
-ignore = ["B904"]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 # Test files: B (flake8-bugbear) and SIM (simplify) often flag patterns
@@ -80,4 +78,8 @@ ignore = ["B904"]
 # cleanup pattern documented in CLAUDE.md Forbidden patterns. SIM105
 # (use contextlib.suppress) and RUF006 (store create_task handle)
 # would alter that pattern's semantics — opt out locally.
-"src/demandsphere_mcp/client.py" = ["SIM105", "RUF006"]
+# B904: raise-without-from-inside-except — retrofitting exception chaining
+# touches runtime semantics; deferred to a follow-up pass. Scoped per-file
+# (client.py and tools/utils.py) so future src/ files are subject to the rule.
+"src/demandsphere_mcp/client.py" = ["SIM105", "RUF006", "B904"]
+"src/demandsphere_mcp/tools/utils.py" = ["B904"]
