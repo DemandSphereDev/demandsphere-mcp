@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -6,9 +7,46 @@ build/
 .eggs/
 .venv/
 venv/
-.env
 *.lock
+
+# Caches
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+
+# OS
 .DS_Store
+
+# Secrets & config
+.env
+.env.*
+!.env.example
+config.json
+*.pem
+*.key
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Coverage / test artifacts
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+.tox/
+.nox/
+
+# Agent tooling — personal only
+CLAUDE.local.md
+AGENTS.local.md
+.claude/settings.local.json
+.claude/cache/
+.claude/logs/
+.claude/todos/
+.cursor/rules.local.mdc
+
+# Working artifacts (AI-agent specs, plans, notes)
+.ai/
