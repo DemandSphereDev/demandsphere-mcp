@@ -1,5 +1,5 @@
 # Pin to exact version for reproducible builds.
-FROM python:3.12.8-slim-bookworm
+FROM python:3.14.0-slim-bookworm
 
 WORKDIR /app
 
