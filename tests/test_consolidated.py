@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from _helpers import unwrap_error
 
 from demandsphere_mcp.client import set_default_client
 from demandsphere_mcp.tools.genai_v51 import register as register_genai
@@ -103,55 +104,65 @@ class TestSerpAnalytics:
     @pytest.mark.asyncio
     async def test_invalid_view(self):
         mcp, _ = _setup_keywords()
-        result = await mcp.tools["serp_analytics"](
-            view="bad",
-            search_engine="google_us",
-            from_date="2025-01-01",
-            to_date="2025-01-07",
+        result = unwrap_error(
+            await mcp.tools["serp_analytics"](
+                view="bad",
+                search_engine="google_us",
+                from_date="2025-01-01",
+                to_date="2025-01-07",
+            )
         )
         assert result["error"] is True
 
     @pytest.mark.asyncio
     async def test_performance_requires_global_key(self):
         mcp, _ = _setup_keywords()
-        result = await mcp.tools["serp_analytics"](
-            view="performance",
-            search_engine="google_us",
-            from_date="2025-01-01",
-            to_date="2025-01-07",
+        result = unwrap_error(
+            await mcp.tools["serp_analytics"](
+                view="performance",
+                search_engine="google_us",
+                from_date="2025-01-01",
+                to_date="2025-01-07",
+            )
         )
         assert result["error"] is True
 
     @pytest.mark.asyncio
     async def test_trends_requires_site_id(self):
         mcp, _ = _setup_keywords()
-        result = await mcp.tools["serp_analytics"](
-            view="trends",
-            search_engine="google_us",
-            from_date="2025-01-01",
-            to_date="2025-01-07",
+        result = unwrap_error(
+            await mcp.tools["serp_analytics"](
+                view="trends",
+                search_engine="google_us",
+                from_date="2025-01-01",
+                to_date="2025-01-07",
+            )
         )
         assert result["error"] is True
 
     @pytest.mark.asyncio
     async def test_engine_comparison_requires_site_id(self):
         mcp, _ = _setup_keywords()
-        result = await mcp.tools["serp_analytics"](
-            view="engine_comparison",
-            search_engine="google_us",
-            from_date="2025-01-01",
-            to_date="2025-01-07",
+        result = unwrap_error(
+            await mcp.tools["serp_analytics"](
+                view="engine_comparison",
+                search_engine="google_us",
+                from_date="2025-01-01",
+                to_date="2025-01-07",
+            )
         )
         assert result["error"] is True
 
     @pytest.mark.asyncio
     async def test_engine_summary_requires_site_id(self):
         mcp, _ = _setup_keywords()
-        result = await mcp.tools["serp_analytics"](
-            view="engine_summary",
-            search_engine="google_us",
-            from_date="2025-01-01",
-            to_date="2025-01-07",
+        result = unwrap_error(
+            await mcp.tools["serp_analytics"](
+                view="engine_summary",
+                search_engine="google_us",
+                from_date="2025-01-01",
+                to_date="2025-01-07",
+            )
         )
         assert result["error"] is True
 
@@ -285,9 +296,11 @@ class TestLlmAnalytics:
     @pytest.mark.asyncio
     async def test_invalid_view(self):
         mcp, _ = _setup_genai()
-        result = await mcp.tools["llm_analytics"](
-            view="bad",
-            site_global_key="site1",
+        result = unwrap_error(
+            await mcp.tools["llm_analytics"](
+                view="bad",
+                site_global_key="site1",
+            )
         )
         assert result["error"] is True
 

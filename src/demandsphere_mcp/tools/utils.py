@@ -16,6 +16,7 @@ don't duplicate or drift:
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import re
 from collections.abc import Callable, Coroutine
@@ -24,6 +25,7 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
+from mcp.types import CallToolResult, TextContent
 
 from ..client import DSApiError
 from ..config import settings
@@ -163,10 +165,24 @@ def _recovery_hint(error_type: str) -> str:
 # ── Tool error handling decorator ─────────────────────────────────────
 
 
+def _error_result(error_dict: dict) -> CallToolResult:
+    """Wrap a structured error dict in a CallToolResult with isError=True.
+
+    The structured dict (error_type, recovery_hint, etc.) is preserved
+    verbatim inside a single TextContent block so LLM tool-callers can
+    still parse it, while the MCP JSON-RPC envelope correctly flags the
+    call as failed via ``isError=True``.
+    """
+    return CallToolResult(
+        isError=True,
+        content=[TextContent(type="text", text=json.dumps(error_dict))],
+    )
+
+
 def safe_tool(
     fn: Callable[..., Coroutine[Any, Any, dict]],
-) -> Callable[..., Coroutine[Any, Any, dict]]:
-    """Decorator that catches API and network errors, returning structured error dicts.
+) -> Callable[..., Coroutine[Any, Any, dict | CallToolResult]]:
+    """Decorator that catches API and network errors, returning structured error envelopes.
 
     Each error includes an ``error_type`` string so the LLM can decide
     whether to retry, rephrase, or give up:
@@ -179,54 +195,67 @@ def safe_tool(
     - ``upstream_error`` — DS API 5xx, retry once
     - ``network_error`` — connection failed, retry once
     - ``internal_error`` — unexpected, retry once
+
+    On error the decorator returns a ``CallToolResult`` with
+    ``isError=True`` so MCP clients that inspect the JSON-RPC envelope
+    correctly identify the call as failed. The structured error dict
+    is preserved inside the content for LLM consumption.
     """
 
     @functools.wraps(fn)
-    async def wrapper(*args: Any, **kwargs: Any) -> dict:
+    async def wrapper(*args: Any, **kwargs: Any) -> dict | CallToolResult:
         try:
             return await fn(*args, **kwargs)
         except DSApiError as exc:
             detail = redact_secrets(exc.detail)
             logger.warning("DS API error in %s: %s", fn.__name__, detail)
             error_type = _classify_api_error(exc.status_code)
-            return {
-                "error": True,
-                "error_type": error_type,
-                "status_code": exc.status_code,
-                "message": detail,
-                "recovery_hint": _recovery_hint(error_type),
-                "tool": fn.__name__,
-            }
+            return _error_result(
+                {
+                    "error": True,
+                    "error_type": error_type,
+                    "status_code": exc.status_code,
+                    "message": detail,
+                    "recovery_hint": _recovery_hint(error_type),
+                    "tool": fn.__name__,
+                }
+            )
         except httpx.TimeoutException:
             logger.warning("Timeout in %s", fn.__name__)
-            return {
-                "error": True,
-                "error_type": "timeout",
-                "status_code": 408,
-                "message": "Request timed out. Try again or use a smaller date range / limit.",
-                "recovery_hint": _recovery_hint("timeout"),
-                "tool": fn.__name__,
-            }
+            return _error_result(
+                {
+                    "error": True,
+                    "error_type": "timeout",
+                    "status_code": 408,
+                    "message": "Request timed out. Try again or use a smaller date range / limit.",
+                    "recovery_hint": _recovery_hint("timeout"),
+                    "tool": fn.__name__,
+                }
+            )
         except httpx.HTTPError as exc:
             logger.warning("Network error in %s: %s", fn.__name__, type(exc).__name__)
-            return {
-                "error": True,
-                "error_type": "network_error",
-                "status_code": 0,
-                "message": f"Network error: {type(exc).__name__}",
-                "recovery_hint": _recovery_hint("network_error"),
-                "tool": fn.__name__,
-            }
+            return _error_result(
+                {
+                    "error": True,
+                    "error_type": "network_error",
+                    "status_code": 0,
+                    "message": f"Network error: {type(exc).__name__}",
+                    "recovery_hint": _recovery_hint("network_error"),
+                    "tool": fn.__name__,
+                }
+            )
         except Exception:
             logger.exception("Unexpected error in %s", fn.__name__)
-            return {
-                "error": True,
-                "error_type": "internal_error",
-                "status_code": 500,
-                "message": "Internal error. Please try again.",
-                "recovery_hint": _recovery_hint("internal_error"),
-                "tool": fn.__name__,
-            }
+            return _error_result(
+                {
+                    "error": True,
+                    "error_type": "internal_error",
+                    "status_code": 500,
+                    "message": "Internal error. Please try again.",
+                    "recovery_hint": _recovery_hint("internal_error"),
+                    "tool": fn.__name__,
+                }
+            )
 
     return wrapper
 
