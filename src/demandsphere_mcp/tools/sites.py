@@ -16,7 +16,7 @@ def register(mcp: FastMCP) -> None:
         raw = await get_client().post("/sites/properties/list")
         data = raw.get("propertyList", raw)
         hints = [
-            "Each site has a global_key (for serp_analytics view='performance', v5.1 tools) and an id/site_id (for other v5.0 tools).",
+            "The site `id` field returned above is the identifier to pass as `site_id` (v5.0 tools like serp_analytics view='trends') OR as `site_global_key` / `global_key` (v5.1 GenAI and brand tools). There is no separate `global_key` field to look up.",
             "Use list_sites_flat for a simpler flat list with keyword counts.",
         ]
         if isinstance(data, dict):
