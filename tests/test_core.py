@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from _helpers import unwrap_error
 
 from demandsphere_mcp.client import (
     DSApiError,
@@ -253,7 +254,7 @@ class TestSafeTool:
         async def bad_tool() -> dict:
             raise DSApiError(401, "Invalid API key")
 
-        result = await bad_tool()
+        result = unwrap_error(await bad_tool())
         assert result["error"] is True
         assert result["error_type"] == "auth_error"
         assert result["status_code"] == 401
@@ -267,7 +268,7 @@ class TestSafeTool:
         async def timeout_tool() -> dict:
             raise httpx.ReadTimeout("read timeout")
 
-        result = await timeout_tool()
+        result = unwrap_error(await timeout_tool())
         assert result["error"] is True
         assert result["error_type"] == "timeout"
         assert "recovery_hint" in result
@@ -279,7 +280,7 @@ class TestSafeTool:
         async def net_tool() -> dict:
             raise httpx.ConnectError("connection refused")
 
-        result = await net_tool()
+        result = unwrap_error(await net_tool())
         assert result["error"] is True
         assert result["error_type"] == "network_error"
         assert "recovery_hint" in result
@@ -291,7 +292,7 @@ class TestSafeTool:
         async def crash_tool() -> dict:
             raise RuntimeError("unexpected")
 
-        result = await crash_tool()
+        result = unwrap_error(await crash_tool())
         assert result["error"] is True
         assert result["error_type"] == "internal_error"
         assert result["status_code"] == 500
@@ -304,7 +305,7 @@ class TestSafeTool:
         async def leaky_tool() -> dict:
             raise DSApiError(400, "Bad request at url?api_key=secret123")
 
-        result = await leaky_tool()
+        result = unwrap_error(await leaky_tool())
         assert "secret123" not in result["message"]
         assert "api_key=[REDACTED]" in result["message"]
 
@@ -314,7 +315,7 @@ class TestSafeTool:
         async def val_tool() -> dict:
             raise DSApiError(400, "Invalid date format")
 
-        result = await val_tool()
+        result = unwrap_error(await val_tool())
         assert result["error_type"] == "validation_error"
         assert "YYYY-MM-DD" in result["recovery_hint"]
 
@@ -324,7 +325,7 @@ class TestSafeTool:
         async def missing_tool() -> dict:
             raise DSApiError(404, "Site not found")
 
-        result = await missing_tool()
+        result = unwrap_error(await missing_tool())
         assert result["error_type"] == "not_found"
         assert "list_sites" in result["recovery_hint"]
 
@@ -334,7 +335,7 @@ class TestSafeTool:
         async def throttled_tool() -> dict:
             raise DSApiError(429, "Too many requests")
 
-        result = await throttled_tool()
+        result = unwrap_error(await throttled_tool())
         assert result["error_type"] == "rate_limited"
         assert "Wait" in result["recovery_hint"]
 
@@ -344,7 +345,7 @@ class TestSafeTool:
         async def upstream_tool() -> dict:
             raise DSApiError(502, "Bad gateway")
 
-        result = await upstream_tool()
+        result = unwrap_error(await upstream_tool())
         assert result["error_type"] == "upstream_error"
         assert "server error" in result["recovery_hint"]
 
